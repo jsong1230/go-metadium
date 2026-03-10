@@ -412,6 +412,17 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
+	// EIP-3860: Limit and meter initcode
+	if evm.chainRules.IsElderflower && len(codeAndHash.code) > int(params.MaxInitCodeSize) {
+		return nil, common.Address{}, gas, ErrMaxInitCodeSizeExceeded
+	}
+	if evm.chainRules.IsElderflower {
+		initCodeCost := toWordSize(uint64(len(codeAndHash.code))) * params.InitCodeWordGas
+		if gas < initCodeCost {
+			return nil, common.Address{}, gas, ErrOutOfGas
+		}
+		gas -= initCodeCost
+	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	if nonce+1 < nonce {
 		return nil, common.Address{}, gas, ErrNonceUintOverflow

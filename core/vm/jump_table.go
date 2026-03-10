@@ -1044,3 +1044,15 @@ func newFrontierInstructionSet() JumpTable {
 
 	return validate(tbl)
 }
+
+// newElderflowerInstructionSet returns the elderflower (Shanghai + Cancun) instructions.
+func newElderflowerInstructionSet() JumpTable {
+	instructionSet := newMergeInstructionSet()
+	enable3651(&instructionSet)  // EIP-3651: Warm COINBASE
+	enable3860(&instructionSet)  // EIP-3860: Initcode Size Limit
+	enable1153(&instructionSet)  // EIP-1153: Transient Storage
+	enable5656(&instructionSet)  // EIP-5656: MCOPY
+	enable6780(&instructionSet)  // EIP-6780: SELFDESTRUCT Limit
+	enable4844(&instructionSet)  // EIP-4844: Blob Transactions
+	return validate(instructionSet)
+}

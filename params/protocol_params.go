@@ -156,6 +156,17 @@ const (
 
 	VrfVerifyGas uint64 = 50000 // @lukepark327: VRF Verify gas price
 
+	// Blob transaction constants (EIP-4844)
+	TxDataNonZeroBlobGas            uint64 = 1       // Per byte of data attached to a blob transaction that is not equal to zero
+	BlobTxPerBlobGas                uint64 = 131072  // Gas per blob for blob transaction
+	TargetBlobGasPerBlock          uint64 = 393216  // Target blob gas per block
+	BlobGaspriceUpdateFraction     uint64 = 3338477 // Blob gas price update fraction
+	MaxBlobsPerTransaction           uint64 = 6      // Maximum number of blobs per transaction
+
+	// EIP-3860: Initcode size limit
+	MaxInitCodeSize  uint64 = 49152 // Maximum size of initcode for CREATE/CREATE2 (2 * 24576)
+	InitCodeWordGas  uint64 = 2     // Gas per word of initcode (EIP-3860)
+
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
 	RefundQuotient        uint64 = 2
