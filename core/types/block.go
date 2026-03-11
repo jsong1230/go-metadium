@@ -150,6 +150,7 @@ type headerMarshaling struct {
 	MinerNodeId  hexutil.Bytes
 	MinerNodeSig hexutil.Bytes
 	BaseFee      *hexutil.Big
+	ExcessBlobGas *hexutil.Big
 	Hash         common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
@@ -203,6 +204,7 @@ func headerToHeaderRlp(h *Header) *headerRlp {
 		MinerNodeId:  h.MinerNodeId,
 		MinerNodeSig: h.MinerNodeSig,
 		BaseFee:      h.BaseFee,
+		ExcessBlobGas: h.ExcessBlobGas,
 	}
 	return hh
 }
@@ -229,6 +231,7 @@ func headerRlpToHeader(h *headerRlp) *Header {
 		MinerNodeId:  h.MinerNodeId,
 		MinerNodeSig: h.MinerNodeSig,
 		BaseFee:      h.BaseFee,
+		ExcessBlobGas: h.ExcessBlobGas,
 	}
 	return hh
 }
@@ -450,6 +453,9 @@ func CopyHeader(h *Header) *Header {
 	}
 	if h.BaseFee != nil {
 		cpy.BaseFee = new(big.Int).Set(h.BaseFee)
+	}
+	if h.ExcessBlobGas != nil {
+		cpy.ExcessBlobGas = new(big.Int).Set(h.ExcessBlobGas)
 	}
 	if len(h.Extra) > 0 {
 		cpy.Extra = make([]byte, len(h.Extra))

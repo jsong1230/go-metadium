@@ -1,0 +1,68 @@
+{
+  "enableAllProjectMcpServers": true,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "plansDirectory": "docs/plans",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Bash(*)",
+      "mcp__chrome-devtools__*"
+    ],
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(sudo)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(nmap *)",
+      "Bash(telnet *)",
+      "Edit(//etc/**)",
+      "Edit(//usr/**)",
+      "Edit(//var/**)",
+      "Edit(//sys/**)",
+      "Edit(//boot/**)",
+      "Read(//etc/shadow)",
+      "Read(//etc/passwd)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/tier3-guard.sh\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pre-compact.sh\""
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/task-quality-check.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

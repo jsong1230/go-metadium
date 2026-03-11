@@ -57,6 +57,9 @@ vendor/*
 /metadium/governance_abi.go
 /metadium/governance_legacy_abi.go
 
+# Auto-generated files (conflicts with custom implementations)
+core/types/gen_header_rlp.go
+
 # Agent Team worktrees
 .worktrees/
 .claude/.pipeline-state

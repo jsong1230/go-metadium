@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest", "--isolated"],
+      "description": "Chrome DevTools: 스크린샷 캡처, 브라우저 자동화, 콘솔/네트워크/DOM 검사, 성능 분석"
+    }
+  }
+}

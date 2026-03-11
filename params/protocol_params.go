@@ -160,7 +160,6 @@ const (
 	TxDataNonZeroBlobGas            uint64 = 1       // Per byte of data attached to a blob transaction that is not equal to zero
 	BlobTxPerBlobGas                uint64 = 131072  // Gas per blob for blob transaction
 	TargetBlobGasPerBlock          uint64 = 393216  // Target blob gas per block
-	BlobGaspriceUpdateFraction     uint64 = 3338477 // Blob gas price update fraction
 	MaxBlobsPerTransaction           uint64 = 6      // Maximum number of blobs per transaction
 
 	// EIP-3860: Initcode size limit
@@ -169,9 +168,9 @@ const (
 
 	// EIP-4844: Blob transactions (additional constants)
 	BlobVerificationGas uint64 = 50000 // Gas cost for KZG point evaluation precompile
-	MaxBlobGasPerBlock  uint64 = 262144 // Maximum blob gas per block (0x40000)
+	MaxBlobGasPerBlock  uint64 = 786432 // Maximum blob gas per block (6 blobs × 131072)
 	MinBlobBaseFee      uint64 = 1 // Minimum blob base fee (wei)
-	BlobBaseFeeUpdateFraction uint64 = 3 // Divisor for blob base fee updates
+	BlobBaseFeeUpdateFraction uint64 = 3338477 // Divisor for blob base fee updates (EIP-4844 standard)
 
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
