@@ -317,6 +317,15 @@ func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.S
 			}
 		}
 	}
+	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork
+	if chain.Config().IsElderflower(header.Number) {
+		parentExcessBlobGas := parent.Header().ExcessBlobGas
+		if parentExcessBlobGas == nil {
+			parentExcessBlobGas = big.NewInt(0)
+		}
+		// For test purposes, calculate ExcessBlobGas assuming 0 blob gas used in parent
+		header.ExcessBlobGas = types.CalcExcessBlobGas(parentExcessBlobGas, 0)
+	}
 	return header
 }
 
