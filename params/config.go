@@ -161,6 +161,7 @@ var (
 		PangyoBlock:         big.NewInt(73_225_410),
 		ApplepieBlock:       big.NewInt(73_225_410),
 		BokbunjaBlock:       big.NewInt(73_225_410),
+		ElderflowerBlock:    nil, // Not yet activated on mainnet
 		Ethash:              new(EthashConfig),
 	}
 
@@ -184,6 +185,7 @@ var (
 		PangyoBlock:         big.NewInt(44_671_396),
 		ApplepieBlock:       big.NewInt(44_671_396),
 		BokbunjaBlock:       big.NewInt(44_671_396),
+		ElderflowerBlock:    nil, // Not yet activated on testnet
 		Ethash:              new(EthashConfig),
 	}
 
