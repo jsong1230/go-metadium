@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"math/big"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -1012,22 +1013,58 @@ func memoryMcopy(stack *Stack) (uint64, bool) {
 }
 
 // opBlobHash implements EIP-4844 BLOBHASH operation
-// Falls back to zero hash when blob transaction context is unavailable
+// Returns the versioned hash of a blob committed to by the transaction.
+// For non-blob transactions, returns zero.
 func opBlobHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	index := scope.Stack.peek()
+	index := scope.Stack.pop()
+	blobHashes := interpreter.evm.TxContext.BlobHashes
+
+	var hash common.Hash
 	if index.IsUint64() {
-		// Return zero hash (blob transactions not yet supported in Metadium)
-		index.Clear()
-	} else {
-		index.Clear()
+		idx := index.Uint64()
+		if idx < uint64(len(blobHashes)) {
+			hash = blobHashes[idx]
+		}
+		// If idx >= len(blobHashes), hash remains zero
 	}
+	// If index is not uint64 (too large), hash remains zero
+
+	scope.Stack.push(uint256.NewIntFromBig(new(big.Int).SetBytes(hash[:])))
 	return nil, nil
 }
 
 // opBlobBaseFee implements EIP-4844 BLOBBASEFEE operation
-// Returns zero until blob fee market is implemented
+// Returns the current blob base fee from the block's excess blob gas.
 func opBlobBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	blobBaseFee := new(uint256.Int)
-	scope.Stack.push(blobBaseFee)
+	// Import types package for CalcBlobBaseFee
+	// The blob base fee is calculated from excess blob gas
+	excessBlobGas := interpreter.evm.Context.ExcessBlobGas
+	if excessBlobGas == nil {
+		excessBlobGas = big.NewInt(0)
+	}
+
+	// Calculate blob base fee from excess blob gas
+	blobBaseFee := new(big.Int)
+	{
+		// fakeexponential calculation inline
+		minBlobBaseFee := big.NewInt(int64(params.MinBlobBaseFee))
+		denominator := big.NewInt(int64(params.BlobBaseFeeUpdateFraction))
+
+		i := big.NewInt(1)
+		output := big.NewInt(0)
+		numeratorAccum := new(big.Int).Mul(minBlobBaseFee, denominator)
+
+		for numeratorAccum.Sign() > 0 && i.Cmp(big.NewInt(100)) <= 0 {
+			output.Add(output, numeratorAccum)
+			numeratorAccum.Mul(numeratorAccum, excessBlobGas)
+			denomAccum := new(big.Int).Mul(denominator, i)
+			numeratorAccum.Div(numeratorAccum, denomAccum)
+			i.Add(i, big.NewInt(1))
+		}
+
+		blobBaseFee = new(big.Int).Div(output, denominator)
+	}
+
+	scope.Stack.push(uint256.NewIntFromBig(blobBaseFee))
 	return nil, nil
 }

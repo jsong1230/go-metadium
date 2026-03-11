@@ -71,13 +71,14 @@ type BlockContext struct {
 	GetHash GetHashFunc
 
 	// Block information
-	Coinbase    common.Address // Provides information for COINBASE
-	GasLimit    uint64         // Provides information for GASLIMIT
-	BlockNumber *big.Int       // Provides information for NUMBER
-	Time        *big.Int       // Provides information for TIME
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
-	BaseFee     *big.Int       // Provides information for BASEFEE
-	Random      *common.Hash   // Provides information for RANDOM
+	Coinbase      common.Address // Provides information for COINBASE
+	GasLimit      uint64         // Provides information for GASLIMIT
+	BlockNumber   *big.Int       // Provides information for NUMBER
+	Time          *big.Int       // Provides information for TIME
+	Difficulty    *big.Int       // Provides information for DIFFICULTY
+	BaseFee       *big.Int       // Provides information for BASEFEE
+	Random        *common.Hash   // Provides information for RANDOM
+	ExcessBlobGas *big.Int       // Provides information for BLOBBASEFEE (EIP-4844)
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -86,6 +87,9 @@ type TxContext struct {
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN
 	GasPrice *big.Int       // Provides information for GASPRICE
+
+	// EIP-4844: Blob transaction information
+	BlobHashes []common.Hash // Provides information for BLOBHASH
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
