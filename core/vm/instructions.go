@@ -1029,7 +1029,7 @@ func opBlobHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 	}
 	// If index is not uint64 (too large), hash remains zero
 
-	scope.Stack.push(uint256.NewIntFromBig(new(big.Int).SetBytes(hash[:])))
+	scope.Stack.push(new(uint256.Int).SetBytes(hash[:]))
 	return nil, nil
 }
 
@@ -1065,6 +1065,7 @@ func opBlobBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 		blobBaseFee = new(big.Int).Div(output, denominator)
 	}
 
-	scope.Stack.push(uint256.NewIntFromBig(blobBaseFee))
+	v, _ := uint256.FromBig(blobBaseFee)
+	scope.Stack.push(v)
 	return nil, nil
 }
