@@ -295,12 +295,13 @@ func NewLondonSigner(chainId *big.Int) Signer {
 }
 
 func (s londonSigner) Sender(tx *Transaction) (common.Address, error) {
-	if tx.Type() != DynamicFeeTxType && tx.Type() != FeeDelegateDynamicFeeTxType { // fee delegation
+	if tx.Type() != DynamicFeeTxType && tx.Type() != FeeDelegateDynamicFeeTxType && tx.Type() != BlobTxType { // fee delegation, EIP-4844
 		return s.eip2930Signer.Sender(tx)
 	}
 	V, R, S := tx.RawSignatureValues()
 	// DynamicFee txs are defined to use 0 and 1 as their recovery
 	// id, add 27 to become equivalent to unprotected Homestead signatures.
+	// BlobTx also uses the same recovery id scheme.
 	V = new(big.Int).Add(V, big.NewInt(27))
 	if tx.ChainId().Cmp(s.chainId) != 0 {
 		return common.Address{}, ErrInvalidChainId
@@ -331,8 +332,26 @@ func (s londonSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s londonSigner) Hash(tx *Transaction) common.Hash {
-	if tx.Type() != DynamicFeeTxType && tx.Type() != FeeDelegateDynamicFeeTxType { // fee delegation
+	if tx.Type() != DynamicFeeTxType && tx.Type() != FeeDelegateDynamicFeeTxType && tx.Type() != BlobTxType { // fee delegation, EIP-4844
 		return s.eip2930Signer.Hash(tx)
+	}
+	// EIP-4844 blob transactions
+	if tx.Type() == BlobTxType {
+		return prefixedRlpHash(
+			BlobTxType,
+			[]interface{}{
+				s.chainId,
+				tx.Nonce(),
+				tx.GasTipCap(),
+				tx.GasFeeCap(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				tx.AccessList(),
+				tx.BlobHashes(),
+				tx.BlobGasCost(),
+			})
 	}
 	// fee delegation
 	txType := tx.Type()
