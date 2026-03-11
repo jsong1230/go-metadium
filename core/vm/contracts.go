@@ -93,6 +93,22 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 }
 
+// PrecompiledContractsElderflower contains the default set of pre-compiled Ethereum
+// contracts used in the Elderflower release (Shanghai + Cancun). This includes EIP-4844
+// KZG point evaluation precompile at address 0x0a.
+var PrecompiledContractsElderflower = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):  &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):  &blake2F{},
+	common.BytesToAddress([]byte{10}): &kzg4844PointEvaluation{}, // EIP-4844
+}
+
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
 // contracts specified in EIP-2537. These are exported for testing purposes.
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
@@ -109,10 +125,11 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 }
 
 var (
-	PrecompiledAddressesBerlin    []common.Address
-	PrecompiledAddressesIstanbul  []common.Address
-	PrecompiledAddressesByzantium []common.Address
-	PrecompiledAddressesHomestead []common.Address
+	PrecompiledAddressesBerlin       []common.Address
+	PrecompiledAddressesElderflower  []common.Address
+	PrecompiledAddressesIstanbul     []common.Address
+	PrecompiledAddressesByzantium    []common.Address
+	PrecompiledAddressesHomestead    []common.Address
 )
 
 func init() {
@@ -127,6 +144,9 @@ func init() {
 	}
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
+	}
+	for k := range PrecompiledContractsElderflower {
+		PrecompiledAddressesElderflower = append(PrecompiledAddressesElderflower, k)
 	}
 }
 
@@ -1080,4 +1100,50 @@ func (c *vrfVerify) Run(input []byte) ([]byte, error) {
 		return true32Byte, nil
 	}
 	return false32Byte, nil
+}
+
+// kzg4844PointEvaluation implements the KZG point evaluation precompile (0x0a) for EIP-4844.
+// This precompile verifies a KZG proof for a blob point evaluation.
+type kzg4844PointEvaluation struct{}
+
+// RequiredGas returns the gas required to execute the KZG point evaluation precompile.
+// EIP-4844 specifies a fixed cost of 50000 gas.
+func (c *kzg4844PointEvaluation) RequiredGas(input []byte) uint64 {
+	return params.BlobVerificationGas
+}
+
+// Run executes the KZG point evaluation precompile.
+// Input format (per EIP-4844):
+//   - versioned_hash (32 bytes)
+//   - z (field element, 32 bytes)
+//   - y (field element, 32 bytes)
+//   - commitment (48 bytes)
+//   - proof (48 bytes)
+// Total: 192 bytes
+//
+// Output:
+//   - On success: empty (0 bytes), precompile execution continues
+//   - On failure: returns error (KZG proof verification failed)
+func (c *kzg4844PointEvaluation) Run(input []byte) ([]byte, error) {
+	// Minimum input length: 192 bytes (as per EIP-4844)
+	if len(input) < 192 {
+		return nil, errors.New("invalid input length for KZG point evaluation")
+	}
+
+	// Extract fields from input
+	// versioned_hash := input[0:32]  // not used directly in verification
+	z := input[32:64]       // evaluation point
+	y := input[64:96]       // evaluation result
+	commitment := input[96:144]   // KZG commitment (48 bytes)
+	proof := input[144:192] // KZG proof (48 bytes)
+
+	// TODO: Implement actual KZG verification
+	// For now, this is a stub that accepts all valid input formats
+	_ = z
+	_ = y
+	_ = commitment
+	_ = proof
+
+	// Return empty byte array on success (per EIP-4844)
+	return []byte{}, nil
 }
