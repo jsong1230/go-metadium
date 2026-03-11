@@ -496,6 +496,17 @@ func (c *Clique) verifySeal(snap *Snapshot, header *types.Header, parents []*typ
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
+// calcBlobGasUsed calculates the blob gas used by a block's transactions
+func calcBlobGasUsed(txs []*types.Transaction) uint64 {
+	var totalBlobGas uint64
+	for _, tx := range txs {
+		if len(tx.BlobHashes()) > 0 {
+			totalBlobGas += uint64(len(tx.BlobHashes())) * params.BlobTxPerBlobGas
+		}
+	}
+	return totalBlobGas
+}
+
 func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Coinbase = common.Address{}
@@ -555,6 +566,21 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	header.Time = parent.Time + c.config.Period
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
+	}
+
+	// EIP-4844: Calculate and set ExcessBlobGas for Elderflower fork
+	if chain.Config().IsElderflower(header.Number) {
+		// Get parent block body to calculate blob gas used
+		parentBlock := chain.GetHeader(header.ParentHash, number-1)
+		if parentBlock != nil && parentBlock.ExcessBlobGas != nil {
+			// For now, we can't calculate blob gas used here because we don't have parent transactions
+			// This will be set properly in state_processor.go after transaction execution
+			// Set to parent's ExcessBlobGas as placeholder (will be recalculated in block validation)
+			header.ExcessBlobGas = new(big.Int).Set(parentBlock.ExcessBlobGas)
+		} else if parentBlock == nil {
+			// Genesis block case
+			header.ExcessBlobGas = big.NewInt(0)
+		}
 	}
 	return nil
 }

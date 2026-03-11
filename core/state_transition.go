@@ -82,6 +82,9 @@ type Message interface {
 	AccessList() types.AccessList
 	// fee delegation
 	FeePayer() *common.Address
+	// EIP-4844: blob transaction
+	BlobHashes() []common.Hash
+	MaxFeePerBlobGas() *big.Int
 }
 
 // ExecutionResult includes all output after executing given evm

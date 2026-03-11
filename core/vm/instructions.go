@@ -1036,35 +1036,11 @@ func opBlobHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 // opBlobBaseFee implements EIP-4844 BLOBBASEFEE operation
 // Returns the current blob base fee from the block's excess blob gas.
 func opBlobBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	// Import types package for CalcBlobBaseFee
-	// The blob base fee is calculated from excess blob gas
 	excessBlobGas := interpreter.evm.Context.ExcessBlobGas
 	if excessBlobGas == nil {
 		excessBlobGas = big.NewInt(0)
 	}
-
-	// Calculate blob base fee from excess blob gas
-	blobBaseFee := new(big.Int)
-	{
-		// fakeexponential calculation inline
-		minBlobBaseFee := big.NewInt(int64(params.MinBlobBaseFee))
-		denominator := big.NewInt(int64(params.BlobBaseFeeUpdateFraction))
-
-		i := big.NewInt(1)
-		output := big.NewInt(0)
-		numeratorAccum := new(big.Int).Mul(minBlobBaseFee, denominator)
-
-		for numeratorAccum.Sign() > 0 && i.Cmp(big.NewInt(100)) <= 0 {
-			output.Add(output, numeratorAccum)
-			numeratorAccum.Mul(numeratorAccum, excessBlobGas)
-			denomAccum := new(big.Int).Mul(denominator, i)
-			numeratorAccum.Div(numeratorAccum, denomAccum)
-			i.Add(i, big.NewInt(1))
-		}
-
-		blobBaseFee = new(big.Int).Div(output, denominator)
-	}
-
+	blobBaseFee := types.CalcBlobBaseFee(excessBlobGas)
 	v, _ := uint256.FromBig(blobBaseFee)
 	scope.Stack.push(v)
 	return nil, nil
