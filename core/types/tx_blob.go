@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
 )
 
@@ -158,7 +157,7 @@ func (tx *BlobTx) rawFeePayerSignatureValues() (*big.Int, *big.Int, *big.Int) {
 
 // BlobGasCost returns the gas cost of the blobs committed to by the transaction.
 func (tx *BlobTx) blobGasCost() *big.Int {
-	if tx.MaxFeePerBlobGas == nil {
+	if tx.MaxFeePerBlobGas == nil || len(tx.BlobHashes) == 0 {
 		return nil
 	}
 	return new(big.Int).Mul(tx.MaxFeePerBlobGas.ToBig(), new(big.Int).SetUint64(uint64(len(tx.BlobHashes)*131072)))

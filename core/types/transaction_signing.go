@@ -337,6 +337,7 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 	}
 	// EIP-4844 blob transactions
 	if tx.Type() == BlobTxType {
+		blobTx := tx.inner.(*BlobTx)
 		return prefixedRlpHash(
 			BlobTxType,
 			[]interface{}{
@@ -349,8 +350,8 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 				tx.Value(),
 				tx.Data(),
 				tx.AccessList(),
-				tx.BlobHashes(),
-				tx.BlobGasCost(),
+				blobTx.MaxFeePerBlobGas,
+				blobTx.BlobHashes,
 			})
 	}
 	// fee delegation

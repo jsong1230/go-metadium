@@ -167,11 +167,9 @@ const (
 	MaxInitCodeSize  uint64 = 49152 // Maximum size of initcode for CREATE/CREATE2 (2 * 24576)
 	InitCodeWordGas  uint64 = 2     // Gas per word of initcode (EIP-3860)
 
-	// EIP-4844: Blob transactions
+	// EIP-4844: Blob transactions (additional constants)
 	BlobVerificationGas uint64 = 50000 // Gas cost for KZG point evaluation precompile
 	MaxBlobGasPerBlock  uint64 = 262144 // Maximum blob gas per block (0x40000)
-	TargetBlobGasPerBlock uint64 = 131072 // Target blob gas per block (0x20000)
-	BlobGasPerBlob      uint64 = 131072 // Gas cost per blob (EIP-4844)
 	MinBlobBaseFee      uint64 = 1 // Minimum blob base fee (wei)
 	BlobBaseFeeUpdateFraction uint64 = 3 // Divisor for blob base fee updates
 

@@ -97,7 +97,7 @@ func CalcBlobBaseFee(excessBlobGas *big.Int) *big.Int {
 }
 
 // GetBlobGasUsed calculates the total blob gas used in a block based on the number of blobs.
-// Each blob costs BlobGasPerBlob gas.
+// Each blob costs BlobTxPerBlobGas gas.
 func GetBlobGasUsed(numBlobs uint64) uint64 {
-	return numBlobs * params.BlobGasPerBlob
+	return numBlobs * params.BlobTxPerBlobGas
 }
