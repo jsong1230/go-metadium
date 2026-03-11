@@ -298,6 +298,22 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
+
+	// EIP-4844: Validate blob transaction fields
+	if st.evm.ChainConfig().IsElderflower(st.evm.Context.BlockNumber) && len(st.msg.BlobHashes()) > 0 {
+		// Validate MaxFeePerBlobGas
+		blobBaseFee := types.CalcBlobBaseFee(st.evm.Context.ExcessBlobGas)
+		if st.msg.MaxFeePerBlobGas() == nil || st.msg.MaxFeePerBlobGas().Cmp(blobBaseFee) < 0 {
+			return fmt.Errorf("%w: address %v, maxFeePerBlobGas: %v, blobBaseFee: %v",
+				ErrBlobFeeCapTooLow, st.msg.From().Hex(), st.msg.MaxFeePerBlobGas(), blobBaseFee)
+		}
+		// Validate blob count
+		if len(st.msg.BlobHashes()) > int(params.MaxBlobsPerTransaction) {
+			return fmt.Errorf("%w: address %v, blobCount: %d, maxBlobs: %d",
+				ErrBlobCountExceeded, st.msg.From().Hex(), len(st.msg.BlobHashes()), params.MaxBlobsPerTransaction)
+		}
+	}
+
 	return st.buyGas()
 }
 

@@ -73,6 +73,20 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		}
 		return consensus.ErrPrunedAncestor
 	}
+
+	// EIP-4844: Validate blob gas per block limit
+	if v.bc.Config().IsElderflower(header.Number) {
+		var totalBlobGas uint64
+		for _, tx := range block.Transactions() {
+			if len(tx.BlobHashes()) > 0 {
+				totalBlobGas += uint64(len(tx.BlobHashes())) * params.BlobTxPerBlobGas
+			}
+		}
+		if totalBlobGas > params.MaxBlobGasPerBlock {
+			return fmt.Errorf("blob gas %d exceeds per-block limit %d", totalBlobGas, params.MaxBlobGasPerBlock)
+		}
+	}
+
 	return nil
 }
 

@@ -73,6 +73,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+
+	// EIP-4844: Track blob gas usage for block (currently for logging/validation)
+	var totalBlobGasUsed uint64
+
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), header.BaseFee)
@@ -86,9 +90,20 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+
+		// EIP-4844: Accumulate blob gas used
+		if len(tx.BlobHashes()) > 0 {
+			totalBlobGasUsed += uint64(len(tx.BlobHashes())) * params.BlobTxPerBlobGas
+		}
 	}
+
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles())
+
+	// EIP-4844: Verify blob gas against per-block limit
+	if p.config.IsElderflower(blockNumber) && totalBlobGasUsed > params.MaxBlobGasPerBlock {
+		return nil, nil, 0, big.NewInt(0), fmt.Errorf("blob gas %d exceeds per-block limit %d", totalBlobGasUsed, params.MaxBlobGasPerBlock)
+	}
 
 	return receipts, allLogs, *usedGas, fees, nil
 }

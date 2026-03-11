@@ -345,6 +345,18 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		// Verify the header's EIP-1559 attributes.
 		return err
 	}
+
+	// EIP-4844: Verify ExcessBlobGas field
+	if !chain.Config().IsElderflower(header.Number) {
+		if header.ExcessBlobGas != nil {
+			return fmt.Errorf("invalid excessBlobGas: have %v, expected <nil> (before Elderflower)", header.ExcessBlobGas)
+		}
+	} else {
+		if header.ExcessBlobGas == nil {
+			return fmt.Errorf("invalid excessBlobGas: expected non-nil value (Elderflower active)")
+		}
+	}
+
 	// Retrieve the snapshot needed to verify this header and cache it
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
