@@ -45,6 +45,7 @@ const (
 	LegacyTxType = iota
 	AccessListTxType
 	DynamicFeeTxType
+	BlobTxType                  = 3  // EIP-4844
 	FeeDelegateDynamicFeeTxType = 22 // fee delegation
 )
 
@@ -95,6 +96,9 @@ type TxData interface {
 	// fee delegation
 	feePayer() *common.Address
 	rawFeePayerSignatureValues() (v, r, s *big.Int)
+	// EIP-4844 blob transactions
+	blobHashes() []common.Hash
+	blobGasCost() *big.Int
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -192,6 +196,10 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		return &inner, err
 	case DynamicFeeTxType:
 		var inner DynamicFeeTx
+		err := rlp.DecodeBytes(b[1:], &inner)
+		return &inner, err
+	case BlobTxType:
+		var inner BlobTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
 	// fee delegation
@@ -744,4 +752,32 @@ func copyAddressPtr(a *common.Address) *common.Address {
 	}
 	cpy := *a
 	return &cpy
+}
+
+// EIP-4844 blob transaction helper methods
+
+// blobHashes returns nil for non-blob transactions
+func (*LegacyTx) blobHashes() []common.Hash {
+	return nil
+}
+
+func (*AccessListTx) blobHashes() []common.Hash {
+	return nil
+}
+
+func (*DynamicFeeTx) blobHashes() []common.Hash {
+	return nil
+}
+
+// blobGasCost returns nil for non-blob transactions
+func (*LegacyTx) blobGasCost() *big.Int {
+	return nil
+}
+
+func (*AccessListTx) blobGasCost() *big.Int {
+	return nil
+}
+
+func (*DynamicFeeTx) blobGasCost() *big.Int {
+	return nil
 }
