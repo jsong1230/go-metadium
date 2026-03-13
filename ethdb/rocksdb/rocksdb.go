@@ -12,6 +12,7 @@ import "C"
 import (
 	"errors"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -30,14 +31,17 @@ var (
 )
 
 type RDBDatabase struct {
-	fn    string
-	db    *C.rocksdb_t
-	opts  *C.rocksdb_options_t
-	wopts *C.rocksdb_writeoptions_t
-	ropts *C.rocksdb_readoptions_t
+	fn      string
+	db      *C.rocksdb_t
+	opts    *C.rocksdb_options_t
+	wopts   *C.rocksdb_writeoptions_t
+	ropts   *C.rocksdb_readoptions_t
+	iterMu  sync.Mutex
+	iters   []*RDBIterator
 }
 
 type RDBIterator struct {
+	db         *RDBDatabase
 	it         *C.rocksdb_iterator_t
 	opts       *C.rocksdb_readoptions_t
 	first      bool
@@ -199,6 +203,7 @@ func (db *RDBDatabase) NewIterator(prefix, start []byte) ethdb.Iterator {
 	it := C.rocksdb_create_iterator(db.db, opts)
 	C.rocksdb_iter_seek_to_first(it)
 	rit := &RDBIterator{
+		db:    db,
 		it:    it,
 		opts:  opts,
 		first: true,
@@ -207,6 +212,9 @@ func (db *RDBDatabase) NewIterator(prefix, start []byte) ethdb.Iterator {
 		rit.lowerBound = lowerBound
 		rit.upperBound = upperBound
 	}
+	db.iterMu.Lock()
+	db.iters = append(db.iters, rit)
+	db.iterMu.Unlock()
 	return rit
 }
 
@@ -216,12 +224,17 @@ func (db *RDBDatabase) NewIteratorWithStart(start []byte) ethdb.Iterator {
 	C.rocksdb_readoptions_set_iterate_lower_bound(opts, lowerBound, C.size_t(len(start)))
 	it := C.rocksdb_create_iterator(db.db, opts)
 	C.rocksdb_iter_seek_to_first(it)
-	return &RDBIterator{
+	rit := &RDBIterator{
+		db:         db,
 		it:         it,
 		opts:       opts,
 		first:      true,
 		lowerBound: lowerBound,
 	}
+	db.iterMu.Lock()
+	db.iters = append(db.iters, rit)
+	db.iterMu.Unlock()
+	return rit
 }
 
 func (db *RDBDatabase) NewIteratorWithPrefix(prefix []byte) ethdb.Iterator {
@@ -235,13 +248,18 @@ func (db *RDBDatabase) NewIteratorWithPrefix(prefix []byte) ethdb.Iterator {
 	C.rocksdb_readoptions_set_iterate_upper_bound(opts, upperBound, C.size_t(len(end)))
 	it := C.rocksdb_create_iterator(db.db, opts)
 	C.rocksdb_iter_seek_to_first(it)
-	return &RDBIterator{
+	rit := &RDBIterator{
+		db:         db,
 		it:         it,
 		opts:       opts,
 		first:      true,
 		lowerBound: lowerBound,
 		upperBound: upperBound,
 	}
+	db.iterMu.Lock()
+	db.iters = append(db.iters, rit)
+	db.iterMu.Unlock()
+	return rit
 }
 
 // NewSnapshot creates a database snapshot based on the current state.
@@ -314,7 +332,25 @@ func (it *RDBIterator) Value() []byte {
 	return C.GoBytes(unsafe.Pointer(cv), C.int(cvl))
 }
 
+func (db *RDBDatabase) deregisterIter(it *RDBIterator) {
+	db.iterMu.Lock()
+	defer db.iterMu.Unlock()
+	for i, iter := range db.iters {
+		if iter == it {
+			last := len(db.iters) - 1
+			db.iters[i] = db.iters[last]
+			db.iters[last] = nil
+			db.iters = db.iters[:last]
+			return
+		}
+	}
+}
+
 func (it *RDBIterator) Release() {
+	if it.db != nil {
+		it.db.deregisterIter(it)
+		it.db = nil
+	}
 	if it.it != nil {
 		C.rocksdb_iter_destroy(it.it)
 	}
@@ -348,6 +384,18 @@ func (db *RDBDatabase) Compact(start []byte, limit []byte) error {
 }
 
 func (db *RDBDatabase) Close() error {
+	// Release any iterators that were not explicitly closed by the caller.
+	// RocksDB asserts that all iterators are destroyed before closing the DB.
+	db.iterMu.Lock()
+	iters := make([]*RDBIterator, len(db.iters))
+	copy(iters, db.iters)
+	db.iters = nil
+	db.iterMu.Unlock()
+	for _, it := range iters {
+		it.db = nil // prevent deregisterIter callback
+		it.Release()
+	}
+
 	C.rocksdb_options_destroy(db.opts)
 	C.rocksdb_writeoptions_destroy(db.wopts)
 	C.rocksdb_readoptions_destroy(db.ropts)
