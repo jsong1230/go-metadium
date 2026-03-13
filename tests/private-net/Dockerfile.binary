@@ -1,0 +1,27 @@
+# Dockerfile.binary
+# 이미 빌드된 gmet 바이너리로 Docker 이미지를 만들기 위한 Dockerfile
+# 사용법: sudo docker build -f Dockerfile.binary -t gmet-rocksdb:latest .
+#   (tests/private-net 디렉토리에서 실행)
+#
+# 또는 서버 바이너리 경로를 지정:
+#   sudo docker build -f Dockerfile.binary --build-arg BINARY_PATH=/data/jsong/gmet-rocksdb -t gmet-rocksdb:latest .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+
+# 빌드 컨텍스트에서 바이너리 복사 (로컬 빌드 바이너리)
+# setup.sh 실행 전 바이너리를 tests/private-net/ 에 복사하거나
+# --build-arg로 경로를 지정하세요
+COPY gmet-rocksdb /usr/local/bin/gmet
+
+RUN chmod +x /usr/local/bin/gmet
+
+EXPOSE 8545 8546 30303 30303/udp
+
+ENTRYPOINT ["gmet"]
+CMD ["--help"]
