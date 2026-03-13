@@ -331,7 +331,14 @@ func (it *RDBIterator) Release() {
 }
 
 func (db *RDBDatabase) Stat(property string) (string, error) {
-	return "", errors.New("Not implemented")
+	prop := C.CString(property)
+	defer C.free(unsafe.Pointer(prop))
+	val := C.rocksdb_property_value(db.db, prop)
+	if val == nil {
+		return "", errors.New("property not found: " + property)
+	}
+	defer C.rocksdb_free(unsafe.Pointer(val))
+	return C.GoString(val), nil
 }
 
 func (db *RDBDatabase) Compact(start []byte, limit []byte) error {
@@ -345,6 +352,7 @@ func (db *RDBDatabase) Close() error {
 	C.rocksdb_writeoptions_destroy(db.wopts)
 	C.rocksdb_readoptions_destroy(db.ropts)
 	C.rocksdb_close(db.db)
+	db.db, db.opts, db.wopts, db.ropts = nil, nil, nil, nil
 	return nil
 }
 
@@ -489,7 +497,7 @@ func (snap *snapshot) Has(key []byte) (bool, error) {
 		return false, cerror(cerr)
 	}
 	if cv == nil {
-		return false, errRocksdbNotFound
+		return false, nil
 	}
 	defer C.free(unsafe.Pointer(cv))
 	return true, nil
@@ -527,10 +535,10 @@ func (snap *snapshot) Get(key []byte) ([]byte, error) {
 // Release releases associated resources. Release should always succeed and can
 // be called multiple times without causing error.
 func (snap *snapshot) Release() {
-
+	if snap.db == nil {
+		return
+	}
 	C.rocksdb_release_snapshot(snap.db, snap.snap)
-
-	snap.db = nil
-	snap.snap = nil
-	snap.ropts = nil
+	C.rocksdb_readoptions_destroy(snap.ropts)
+	snap.db, snap.snap, snap.ropts = nil, nil, nil
 }
