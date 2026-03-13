@@ -1050,10 +1050,11 @@ func newFrontierInstructionSet() JumpTable {
 func newElderflowerInstructionSet() JumpTable {
 	instructionSet := newMergeInstructionSet()
 	enable3651(&instructionSet)  // EIP-3651: Warm COINBASE
+	enable3855(&instructionSet)  // EIP-3855: PUSH0 opcode
 	enable3860(&instructionSet)  // EIP-3860: Initcode Size Limit
-	enable1153(&instructionSet)  // EIP-1153: Transient Storage
+	enable1153(&instructionSet)  // EIP-1153: Transient Storage (TLOAD/TSTORE)
 	enable5656(&instructionSet)  // EIP-5656: MCOPY
 	enable6780(&instructionSet)  // EIP-6780: SELFDESTRUCT Limit
-	enable4844(&instructionSet)  // EIP-4844: Blob Transactions
+	enable4844(&instructionSet)  // EIP-4844: Blob Transactions (BLOBHASH/BLOBBASEFEE)
 	return validate(instructionSet)
 }
