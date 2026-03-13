@@ -19,8 +19,6 @@
     "deny": [
       "Bash(sudo *)",
       "Bash(sudo)",
-      "Bash(ssh *)",
-      "Bash(scp *)",
       "Bash(nmap *)",
       "Bash(telnet *)",
       "Edit(//etc/**)",

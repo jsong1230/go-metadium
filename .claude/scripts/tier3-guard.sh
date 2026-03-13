@@ -13,10 +13,13 @@ fi
 
 # --- Tier 3 패턴 검사 ---
 
-# 1. sudo 실행 차단
+# 1. sudo 실행 차단 (ssh 원격 명령 내 sudo는 허용)
+# ssh -i ... host 'sudo ...' 패턴은 원격 실행이므로 허용
 if echo "$COMMAND" | grep -qE '(^|[;&|`$( ])sudo( |$)'; then
-  echo "❌ [Tier3-Guard] sudo 실행은 차단됩니다. 필요한 경우 사용자가 직접 터미널에서 실행하세요." >&2
-  exit 2
+  if ! echo "$COMMAND" | grep -qE "^ssh "; then
+    echo "❌ [Tier3-Guard] sudo 실행은 차단됩니다. 필요한 경우 사용자가 직접 터미널에서 실행하세요." >&2
+    exit 2
+  fi
 fi
 
 # 2. 운영 배포 패턴 차단 (prod/production/live 환경 배포 명령)
