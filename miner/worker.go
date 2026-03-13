@@ -478,9 +478,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 
 		case head := <-w.chainHeadCh:
 			clearPending(head.Block.NumberU64())
-			// PoW hashimeta mines instantly; sleep to prevent timestamp drift
-			// ("block in the future" rejection by peers after ~16 fast blocks)
-			time.Sleep(1 * time.Second)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
@@ -1384,6 +1381,12 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 			return nil, fmt.Errorf("invalid timestamp, parent %d given %d", parent.Time(), timestamp)
 		}
 		timestamp = parent.Time() + 1
+		// If the block timestamp is in the future, wait until that time.
+		// This prevents timestamp drift when multiple nodes mine in parallel
+		// at sub-second speed (hashimeta/nodag mode with avocadoBlock=0).
+		if now := time.Now().Unix(); int64(timestamp) > now {
+			time.Sleep(time.Duration(int64(timestamp)-now) * time.Second)
+		}
 	}
 	// Construct the sealing block header, set the extra field if it's allowed
 	num := parent.Number()
