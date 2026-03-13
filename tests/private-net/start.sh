@@ -9,7 +9,7 @@ log()  { echo "[$(date '+%H:%M:%S')] $*"; }
 warn() { echo "[$(date '+%H:%M:%S')] [WARN] $*"; }
 
 [[ -f static-nodes.json ]] || { echo "[ERROR] setup.sh를 먼저 실행하세요."; exit 1; }
-[[ -d data/node1/geth/chaindata ]] || { echo "[ERROR] setup.sh를 먼저 실행하세요."; exit 1; }
+[[ -f data/node1/geth/nodekey ]] || { echo "[ERROR] setup.sh를 먼저 실행하세요."; exit 1; }
 
 log "=== 프라이빗 네트워크 시작 ==="
 docker compose up -d
