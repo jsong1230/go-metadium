@@ -29,6 +29,15 @@ done
 
 sleep 5
 
+# PoW 모드에서 --mine 플래그만으로 마이닝이 시작되지 않으므로 miner_start 호출
+log "마이너 시작 중..."
+for port in 8545 8546 8547; do
+  curl -sf -X POST -H "Content-Type: application/json" \
+    --data '{"jsonrpc":"2.0","method":"miner_start","params":[1],"id":1}' \
+    "http://localhost:$port" &>/dev/null && log "  :$port miner_start OK" || log "  :$port miner_start failed"
+done
+sleep 3
+
 log ""
 log "=== 네트워크 상태 ==="
 for port in 8545 8546 8547; do
