@@ -11,5 +11,5 @@ if [ ! -d "$DATADIR/geth/chaindata" ]; then
     echo "[entrypoint] Init complete."
 fi
 
-echo "[entrypoint] Starting gmet with args: $@"
+echo "[entrypoint] Starting gmet..."
 exec gmet --datadir "$DATADIR" "$@"

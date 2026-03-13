@@ -25,6 +25,9 @@ services:
     hostname: gmet-node1
     volumes:
       - ./genesis.json:/data/genesis.json:ro
+      - ./static-nodes.json:/data/geth/geth/static-nodes.json:ro
+      - ./data/node1/keystore:/data/geth/keystore:ro
+      - ./data/node1/geth/nodekey:/data/geth/geth/nodekey:ro
       - ./data/node1:/data/geth
     ports:
       - "8545:8545"
@@ -60,6 +63,8 @@ services:
       - node1
     volumes:
       - ./genesis.json:/data/genesis.json:ro
+      - ./static-nodes.json:/data/geth/geth/static-nodes.json:ro
+      - ./data/node2/keystore:/data/geth/keystore:ro
       - ./data/node2:/data/geth
     ports:
       - "8546:8545"
@@ -95,6 +100,8 @@ services:
       - node1
     volumes:
       - ./genesis.json:/data/genesis.json:ro
+      - ./static-nodes.json:/data/geth/geth/static-nodes.json:ro
+      - ./data/node3/keystore:/data/geth/keystore:ro
       - ./data/node3:/data/geth
     ports:
       - "8547:8545"

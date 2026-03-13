@@ -23,7 +23,6 @@ log "=== 프라이빗 네트워크 초기화 시작 (chainId=$NETWORKID, Elderfl
 # 기존 데이터 정리
 log "기존 데이터 정리..."
 rm -rf data/ passwords.txt static-nodes.json
-
 mkdir -p data/node1/geth data/node2/geth data/node3/geth
 echo "$PASSWORD" > passwords.txt
 
@@ -40,7 +39,7 @@ ACCOUNTS=(
 )
 NODES=(node1 node2 node3)
 
-# 계정 import
+# 계정 keystore import (각 노드 datadir에)
 log "계정 import 중..."
 for i in 0 1 2; do
   node="${NODES[$i]}"
@@ -55,62 +54,34 @@ for i in 0 1 2; do
   log "  $node: ${ACCOUNTS[$i]}"
 done
 
-# genesis 초기화
-log "genesis 초기화 중..."
-for node in "${NODES[@]}"; do
-  "$GMET_BIN" init \
-    --datadir "data/$node" \
-    --userocksdb "$USE_ROCKSDB" \
-    genesis.json 2>&1 | grep -E "INFO|WARN|ERROR" | head -3 || true
-  log "  $node 초기화 완료"
-done
+# node1 nodekey 생성 (enode 계산용 - gmet 실행 없이)
+log "node1 nodekey 생성 중..."
+NODEKEY=$(openssl rand -hex 32)
+echo "$NODEKEY" > data/node1/geth/nodekey
+chmod 600 data/node1/geth/nodekey
 
-# node1 임시 실행 → enode 추출 → static-nodes.json 생성
-log "node1 enode 추출 중..."
-"$GMET_BIN" \
-  --datadir data/node1 \
-  --networkid "$NETWORKID" \
-  --port 30399 \
-  --http --http.addr 127.0.0.1 --http.port 18545 \
-  --http.api admin \
-  --nodiscover \
-  --userocksdb "$USE_ROCKSDB" \
-  --verbosity 1 \
-  > /tmp/gmet-setup.log 2>&1 &
-NODE1_PID=$!
+# Python으로 node1 enode 계산 (gmet 실행 불필요)
+NODE1_ID=$(python3 - <<PYEOF
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.backends import default_backend
+privkey = ec.derive_private_key(int("$NODEKEY", 16), ec.SECP256K1(), default_backend())
+pub = privkey.public_key().public_numbers()
+x = pub.x.to_bytes(32, 'big').hex()
+y = pub.y.to_bytes(32, 'big').hex()
+print(x + y)
+PYEOF
+)
 
-ENODE=""
-for i in $(seq 1 20); do
-  sleep 2
-  ENODE=$(curl -s -X POST \
-    --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' \
-    -H "Content-Type: application/json" \
-    http://127.0.0.1:18545 2>/dev/null | \
-    python3 -c "import json,sys; d=json.load(sys.stdin); print(d['result']['enode'])" 2>/dev/null || true)
-  [[ -n "$ENODE" ]] && break
-done
+ENODE="enode://${NODE1_ID}@172.30.0.11:30303"
+log "node1 enode: $ENODE"
 
-kill "$NODE1_PID" 2>/dev/null || true
-wait "$NODE1_PID" 2>/dev/null || true
-
-if [[ -z "$ENODE" ]]; then
-  err "enode 추출 실패. /tmp/gmet-setup.log 확인 후 static-nodes.json을 수동으로 작성하세요."
-fi
-
-# 내부 Docker IP로 교체
-ENODE_FIXED=$(echo "$ENODE" | sed 's/@127\.0\.0\.1:[0-9]*/@172.30.0.11:30303/')
-log "node1 enode: $ENODE_FIXED"
-
+# static-nodes.json 생성
 cat > static-nodes.json <<EOF
 [
-  "$ENODE_FIXED"
+  "$ENODE"
 ]
 EOF
-
-# 각 노드 datadir에도 복사
-for node in "${NODES[@]}"; do
-  cp static-nodes.json "data/$node/geth/static-nodes.json"
-done
+log "static-nodes.json 생성 완료"
 
 # Docker 이미지 빌드
 log "Docker 이미지 빌드 중 (gmet-private:latest)..."
