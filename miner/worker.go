@@ -478,6 +478,9 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 
 		case head := <-w.chainHeadCh:
 			clearPending(head.Block.NumberU64())
+			// PoW hashimeta mines instantly; sleep to prevent timestamp drift
+			// ("block in the future" rejection by peers after ~16 fast blocks)
+			time.Sleep(1 * time.Second)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
