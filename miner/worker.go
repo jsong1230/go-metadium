@@ -1431,6 +1431,14 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		log.Error("Failed to prepare header for sealing", "err", err)
 		return nil, err
 	}
+	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork blocks.
+	if w.chainConfig.IsElderflower(header.Number) && header.ExcessBlobGas == nil {
+		parentExcessBlobGas := parent.Header().ExcessBlobGas
+		if parentExcessBlobGas == nil {
+			parentExcessBlobGas = big.NewInt(0)
+		}
+		header.ExcessBlobGas = types.CalcExcessBlobGas(parentExcessBlobGas, 0)
+	}
 	// Could potentially happen if starting to mine in an odd state.
 	// Note genParams.coinbase can be different with header.Coinbase
 	// since clique algorithm can modify the coinbase field in header.
@@ -1538,6 +1546,14 @@ func (w *worker) refreshPending(locked bool) {
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
+	}
+	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork blocks.
+	if w.chainConfig.IsElderflower(header.Number) && header.ExcessBlobGas == nil {
+		parentExcessBlobGas := parent.Header().ExcessBlobGas
+		if parentExcessBlobGas == nil {
+			parentExcessBlobGas = big.NewInt(0)
+		}
+		header.ExcessBlobGas = types.CalcExcessBlobGas(parentExcessBlobGas, 0)
 	}
 	if env, err := w.makeEnv(parent, header, header.Coinbase); err == nil {
 		env.blockInterval = blockInterval
