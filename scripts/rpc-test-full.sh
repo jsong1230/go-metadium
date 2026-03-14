@@ -394,11 +394,21 @@ err=$(echo "$resp" | jq_err 2>/dev/null || true)
   v=$(echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin)['result']; print('gasUsed='+str(int(r.get('gasUsed','0x0'),16)))" 2>/dev/null)
   pass "eth_createAccessList — $v"; }
 
-resp=$(rpc "eth_signTransaction" "[{\"from\":\"$ACCT1\",\"to\":\"$ACCT2\",\"value\":\"0x1\",\"gas\":\"0x5208\",\"nonce\":\"0x0\"}]")
+SIGN_NONCE=$(rpc "eth_getTransactionCount" "[\"$ACCT1\",\"pending\"]" | python3 -c "import json,sys; print(json.load(sys.stdin)['result'])" 2>/dev/null || echo "0x0")
+resp=$(rpc "eth_signTransaction" "[{
+  \"from\":\"$ACCT1\",
+  \"to\":\"$ACCT2\",
+  \"value\":\"0x1\",
+  \"gas\":\"0x5208\",
+  \"nonce\":\"$SIGN_NONCE\",
+  \"maxFeePerGas\":\"0x2E90EDD000\",
+  \"maxPriorityFeePerGas\":\"0x174876E800\",
+  \"type\":\"0x2\"
+}]")
 err=$(echo "$resp" | jq_err 2>/dev/null || true)
-[[ -n "$err" ]] && { [[ "$err" =~ "authentication needed"|"unlock" ]] && warn "eth_signTransaction" "계정 잠금됨" || warn "eth_signTransaction" "$err"; } || {
+[[ -n "$err" ]] && { [[ "$err" =~ "authentication needed"|"unlock" ]] && fail "eth_signTransaction" "계정 잠금됨" || fail "eth_signTransaction" "$err"; } || {
   v=$(echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin)['result']; print('raw='+r.get('raw','?')[:20]+'...')" 2>/dev/null)
-  pass "eth_signTransaction — $v"; }
+  pass "eth_signTransaction (EIP-1559 Type2) — $v"; }
 
 # ════════════════════════════════════════════════════════════════════
 sec "10. debug_* (getRawBlock/Header/Transaction/Receipts)"
