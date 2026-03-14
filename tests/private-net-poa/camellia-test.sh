@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# elderflower-test.sh - Elderflower fork 전환 테스트
+# camellia-test.sh - Camellia fork 전환 테스트
 # block 99 (이전) vs block 100 (이후) opcode 동작 검증
 #
-# 실행: ./elderflower-test.sh
+# 실행: ./camellia-test.sh
 # 전제: private-net-poa가 block 100 이상 진행 중
 
 set -euo pipefail
@@ -51,13 +51,13 @@ else:
 }
 
 # --- 전제 확인 ---
-log "=== Elderflower Fork 전환 테스트 ==="
+log "=== Camellia Fork 전환 테스트 ==="
 CURRENT=$(rpc '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' | \
   python3 -c "import sys,json; d=json.load(sys.stdin); print(int(d['result'],16))")
 FORK_BLOCK=$(rpc '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x64",false],"id":1}' | \
   python3 -c "import sys,json; d=json.load(sys.stdin); b=d['result']; print(int(b['number'],16) if b else -1)")
 
-log "현재 블록: $CURRENT / Elderflower fork 블록: $FORK_BLOCK (0x64=100)"
+log "현재 블록: $CURRENT / Camellia fork 블록: $FORK_BLOCK (0x64=100)"
 if [[ "$CURRENT" -lt 100 ]]; then
   log "❌ 블록이 100 미만입니다. 더 기다리세요."
   exit 1
@@ -219,7 +219,7 @@ echo ""
 # ============================================================
 log "--- EIP-6780: SELFDESTRUCT 제한 ---"
 
-# Elderflower 이후: 동일 tx에서 생성된 컨트랙트만 selfdestruct 가능
+# Camellia 이후: 동일 tx에서 생성된 컨트랙트만 selfdestruct 가능
 # eth_call은 state를 변경하지 않으므로 실제 배포 테스트는 생략
 # bytecode: SELFDESTRUCT에 address 전달 (실행은 되지만 실제 파괴 없음)
 # 이미 존재하는 컨트랙트에서 SELFDESTRUCT 호출 → block 100 이후에는 잔액 전송만, 파괴 없음
@@ -242,7 +242,7 @@ echo ""
 # 요약
 # ============================================================
 TOTAL=$((PASS + FAIL + SKIP))
-log "=== Elderflower Fork 테스트 완료 ==="
+log "=== Camellia Fork 테스트 완료 ==="
 log "결과: PASS=$PASS, FAIL=$FAIL, SKIP=$SKIP / TOTAL=$TOTAL"
 echo ""
 

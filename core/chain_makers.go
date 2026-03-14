@@ -317,8 +317,8 @@ func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.S
 			}
 		}
 	}
-	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork
-	if chain.Config().IsElderflower(header.Number) {
+	// EIP-4844: Initialize ExcessBlobGas for Camellia fork
+	if chain.Config().IsCamellia(header.Number) {
 		parentExcessBlobGas := parent.Header().ExcessBlobGas
 		if parentExcessBlobGas == nil {
 			parentExcessBlobGas = big.NewInt(0)

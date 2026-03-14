@@ -1,11 +1,11 @@
-# Phase 1: Elderflower Fork 구현 계획
+# Phase 1: Camellia Fork 구현 계획
 
 ## Context
 
 Go Metadium의 EVM을 London에서 Shanghai + Cancun으로 업그레이드합니다. 이를 통해 최신 이더리움 기능과의 호환성을 확보하고, Metadium 특화 기능(Fee Delegation, ETCD, SPoA)은 그대로 유지합니다.
 
 **현재 상태**: Bokbunja (London EVM, Go 1.21)
-**목표 상태**: Elderflower (Shanghai + Cancun EVM)
+**목표 상태**: Camellia (Shanghai + Cancun EVM)
 
 ---
 
@@ -36,7 +36,7 @@ Go Metadium의 EVM을 London에서 Shanghai + Cancun으로 업그레이드합니
 ## 구현 순서
 
 ### 1단계: 기반 작업 (1-2일)
-1. `params/config.go` - ElderflowerBlock 추가
+1. `params/config.go` - CamelliaBlock 추가
 2. `core/vm/opcodes.go` - 누락된 opcode 정의
 
 ### 2단계: Shanghai EIPs (2-3일)
@@ -63,14 +63,14 @@ Go Metadium의 EVM을 London에서 Shanghai + Cancun으로 업그레이드합니
 
 ### params/
 ```
-config.go          # ElderflowerBlock, IsElderflower() 추가
+config.go          # CamelliaBlock, IsCamellia() 추가
 protocol_params.go # Blob gas 상수, MaxInitCodeSize 추가
 ```
 
 ### core/vm/
 ```
 opcodes.go         # TLOAD(0x5C), TSTORE(0x5D), MCOPY(0x5E), BLOBHASH(0x49), BLOBBASEFEE(0x4A)
-jump_table.go      # elderflowerInstructionSet 추가
+jump_table.go      # camelliaInstructionSet 추가
 instructions.go    # opPush0, opTload, opTstore, opMcopy, opBlobHash, opBlobBaseFee
 eips.go            # enable3651, enable3855, enable3860, enable1153, enable5656, enable6780, enable4844
 contracts.go       # KZG precompile (0x0A) 추가
@@ -206,4 +206,4 @@ make gmet-linux
 
 ## 시작점
 
-첫 번째 작업: `params/config.go`에 ElderflowerBlock 추가 및 `core/vm/opcodes.go`에 누락된 opcode 정의
+첫 번째 작업: `params/config.go`에 CamelliaBlock 추가 및 `core/vm/opcodes.go`에 누락된 opcode 정의

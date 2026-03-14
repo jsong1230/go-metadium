@@ -18,7 +18,7 @@ err()  { echo "[ERROR] $*" >&2; exit 1; }
 
 [[ -x "$GMET_BIN" ]] || err "gmet 바이너리 없음: $GMET_BIN"
 
-log "=== 프라이빗 네트워크 초기화 시작 (chainId=$NETWORKID, ElderflowerFork=100) ==="
+log "=== 프라이빗 네트워크 초기화 시작 (chainId=$NETWORKID, CamelliaFork=100) ==="
 
 # 기존 데이터 정리
 log "기존 데이터 정리..."
@@ -99,4 +99,4 @@ log "노드 RPC:"
 log "  node1: http://localhost:8545"
 log "  node2: http://localhost:8546"
 log "  node3: http://localhost:8547"
-log "ElderflowerFork 활성화: block 100"
+log "CamelliaFork 활성화: block 100"

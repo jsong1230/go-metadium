@@ -44,8 +44,8 @@ type (
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
-	case evm.chainRules.IsElderflower: // EIP-4844
-		precompiles = PrecompiledContractsElderflower
+	case evm.chainRules.IsCamellia: // EIP-4844
+		precompiles = PrecompiledContractsCamellia
 	case evm.chainRules.IsBerlin:
 		precompiles = PrecompiledContractsBerlin
 	case evm.chainRules.IsIstanbul:
@@ -419,10 +419,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	// EIP-3860: Limit and meter initcode
-	if evm.chainRules.IsElderflower && len(codeAndHash.code) > int(params.MaxInitCodeSize) {
+	if evm.chainRules.IsCamellia && len(codeAndHash.code) > int(params.MaxInitCodeSize) {
 		return nil, common.Address{}, gas, ErrMaxInitCodeSizeExceeded
 	}
-	if evm.chainRules.IsElderflower {
+	if evm.chainRules.IsCamellia {
 		initCodeCost := toWordSize(uint64(len(codeAndHash.code))) * params.InitCodeWordGas
 		if gas < initCodeCost {
 			return nil, common.Address{}, gas, ErrOutOfGas

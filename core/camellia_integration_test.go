@@ -78,8 +78,8 @@ func TestBlobBaseFeeCalculation(t *testing.T) {
 	}
 }
 
-// TestElderflowerForksInChainConfigs verifies Elderflower fork configuration
-func TestElderflowerForksInChainConfigs(t *testing.T) {
+// TestCamelliaForksInChainConfigs verifies Camellia fork configuration
+func TestCamelliaForksInChainConfigs(t *testing.T) {
 	configs := []struct {
 		name   string
 		config *params.ChainConfig
@@ -95,15 +95,15 @@ func TestElderflowerForksInChainConfigs(t *testing.T) {
 			if cfg.config == nil {
 				t.Skip("config is nil")
 			}
-			// Check if ElderflowerBlock is defined
-			if cfg.config.ElderflowerBlock != nil {
-				t.Logf("✓ %s: ElderflowerBlock = %d", cfg.name, cfg.config.ElderflowerBlock)
+			// Check if CamelliaBlock is defined
+			if cfg.config.CamelliaBlock != nil {
+				t.Logf("✓ %s: CamelliaBlock = %d", cfg.name, cfg.config.CamelliaBlock)
 			} else {
-				t.Logf("  %s: ElderflowerBlock not yet activated (nil)", cfg.name)
+				t.Logf("  %s: CamelliaBlock not yet activated (nil)", cfg.name)
 			}
-			// Verify IsElderflower method works
-			isActive := cfg.config.IsElderflower(big.NewInt(0))
-			t.Logf("  IsElderflower(0): %v", isActive)
+			// Verify IsCamellia method works
+			isActive := cfg.config.IsCamellia(big.NewInt(0))
+			t.Logf("  IsCamellia(0): %v", isActive)
 		})
 	}
 }

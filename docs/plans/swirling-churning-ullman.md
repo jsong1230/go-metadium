@@ -2,7 +2,7 @@
 
 ## Context
 BlobTx 타입, Gas Market 계산, BLOBHASH/BLOBBASEFEE 옵코드, KZG 프리컴파일 stub은 구현됐지만,
-블록 생성·검증·실행 파이프라인에 통합되지 않았다. 이 계획은 Elderflower 포크에서 EIP-4844가
+블록 생성·검증·실행 파이프라인에 통합되지 않았다. 이 계획은 Camellia 포크에서 EIP-4844가
 실제로 동작하도록 전체 파이프라인을 연결한다.
 
 ---
@@ -74,9 +74,9 @@ BlobHashes: msg.BlobHashes(),
 ```
 
 ### 2-3. `consensus/clique/clique.go` — `Prepare()`
-Elderflower 활성 시 신규 블록에 ExcessBlobGas 설정:
+Camellia 활성 시 신규 블록에 ExcessBlobGas 설정:
 ```go
-if chain.Config().IsElderflower(header.Number) {
+if chain.Config().IsCamellia(header.Number) {
     parentBlobGasUsed := calcBlobGasUsed(parent.Transactions()) // 부모 블록 blob gas 계산
     header.ExcessBlobGas = types.CalcExcessBlobGas(parent.ExcessBlobGas, parentBlobGasUsed)
 }
@@ -104,7 +104,7 @@ MaxFeePerBlobGas() *big.Int
 
 **`preCheck()`에 blob fee 검증 추가:**
 ```go
-if chain.IsElderflower(blockNum) && len(msg.BlobHashes()) > 0 {
+if chain.IsCamellia(blockNum) && len(msg.BlobHashes()) > 0 {
     blobBaseFee := types.CalcBlobBaseFee(st.evm.Context.ExcessBlobGas)
     if msg.MaxFeePerBlobGas() == nil || msg.MaxFeePerBlobGas().Cmp(blobBaseFee) < 0 {
         return ErrBlobFeeCapTooLow
@@ -123,7 +123,7 @@ var ErrBlobCountExceeded = errors.New("blob count exceeds per-transaction limit"
 
 ### 3-2. `consensus/clique/clique.go` — `verifyCascadingFields()`
 ```go
-if !chain.Config().IsElderflower(header.Number) {
+if !chain.Config().IsCamellia(header.Number) {
     if header.ExcessBlobGas != nil {
         return errInvalidExcessBlobGas
     }
@@ -141,7 +141,7 @@ if !chain.Config().IsElderflower(header.Number) {
 
 ### 3-3. `core/block_validator.go` — `ValidateBody()`
 ```go
-if v.config.IsElderflower(header.Number) {
+if v.config.IsCamellia(header.Number) {
     var totalBlobGas uint64
     for _, tx := range block.Transactions() {
         totalBlobGas += uint64(len(tx.BlobHashes())) * params.BlobTxPerBlobGas
@@ -170,18 +170,18 @@ for i, tx := range block.Transactions() {
 ### `core/tx_pool.go`
 **구조체 필드 추가:**
 ```go
-elderflower bool // EIP-4844 활성화 플래그
+camellia bool // EIP-4844 활성화 플래그
 ```
 
 **`reset()` 함수에 플래그 업데이트:**
 ```go
-pool.elderflower = pool.chainconfig.IsElderflower(next)
+pool.camellia = pool.chainconfig.IsCamellia(next)
 ```
 
 **`validateTx()`에 blob 검증 추가:**
 ```go
 if tx.Type() == types.BlobTxType {
-    if !pool.elderflower {
+    if !pool.camellia {
         return ErrTxTypeNotSupported
     }
     if len(tx.BlobHashes()) == 0 {
@@ -242,7 +242,7 @@ Phase 4 (Phase 3 이후)
 | `core/state_transition.go` | Message 인터페이스, preCheck() |
 | `core/block_validator.go` | ValidateBody() |
 | `core/state_processor.go` | blob gas 집계 |
-| `core/tx_pool.go` | elderflower 플래그, validateTx() |
+| `core/tx_pool.go` | camellia 플래그, validateTx() |
 
 ---
 

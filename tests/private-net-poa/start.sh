@@ -49,7 +49,7 @@ for port in 8545 8546 8547; do
 done
 
 log ""
-log "ElderflowerFork 활성화 블록: 100"
+log "CamelliaFork 활성화 블록: 100"
 log "예상 소요 시간: 약 3-4분 (blockInterval~2초, 거버넌스 없는 경우)"
 log ""
 log "유용한 명령:"

@@ -2,7 +2,7 @@
 
 > Last Updated: 2026-03-10
 > Current Version: Bokbunja (Merge-equivalent)
-> Target Version: Elderflower (Shanghai + Cancun)
+> Target Version: Camellia (Shanghai + Cancun)
 
 ---
 
@@ -61,7 +61,7 @@ Go Metadium is a Go-based blockchain client forked from go-ethereum, customized 
 ## Development Strategy
 
 ### Approach
-1. **Incremental Forking**: Single hardfork for Shanghai + Cancun (Elderflower)
+1. **Incremental Forking**: Single hardfork for Shanghai + Cancun (Camellia)
 2. **Feature Preservation**: All Metadium-specific features remain intact
 3. **SPoA Adaptation**: PoS-specific EIPs excluded, timing adjusted
 4. **Backward Compatibility**: Fee Delegation and governance continue working
@@ -72,7 +72,7 @@ Go Metadium is a Go-based blockchain client forked from go-ethereum, customized 
 master (stable production)
 │
 ├── feature/phase0-infra ✅        ← Go 1.21 upgrade (COMPLETED)
-├── feature/phase1-elderflower      ← Shanghai + Cancun (IN PLANNING)
+├── feature/phase1-camellia      ← Shanghai + Cancun (IN PLANNING)
 └── feature/phase2-figberry         ← Prague (FUTURE)
 ```
 
@@ -102,13 +102,13 @@ master (stable production)
 - All tests passing
 - No deprecated patterns
 
-**Next Step**: Begin Phase 1 (Elderflower Fork)
+**Next Step**: Begin Phase 1 (Camellia Fork)
 
 ---
 
-### M-1: Phase 1 - Elderflower Fork (Shanghai + Cancun)
+### M-1: Phase 1 - Camellia Fork (Shanghai + Cancun)
 **Duration**: 8-10 weeks (estimated)
-**Branch**: feature/phase1-elderflower
+**Branch**: feature/phase1-camellia
 **Target**: Shanghai + Cancun EVM features
 **Dependencies**: M-0 complete
 
@@ -400,7 +400,7 @@ Week  23+:  Post-Upgrade Monitoring
 
 ### Milestone Announcements
 
-1. **Phase 1 Start**: Announcement of Elderflower Fork development
+1. **Phase 1 Start**: Announcement of Camellia Fork development
 2. **Testnet Launch**: Public testnet available for testing
 3. **Governance Proposal**: Mainnet upgrade vote initiated
 4. **Mainnet Upgrade**: Hardfork execution announcement

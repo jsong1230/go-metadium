@@ -55,7 +55,7 @@ var (
 	berlinInstructionSet           = newBerlinInstructionSet()
 	londonInstructionSet           = newLondonInstructionSet()
 	mergeInstructionSet            = newMergeInstructionSet()
-	elderflowerInstructionSet      = newElderflowerInstructionSet()
+	camelliaInstructionSet      = newCamelliaInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
@@ -1046,8 +1046,8 @@ func newFrontierInstructionSet() JumpTable {
 	return validate(tbl)
 }
 
-// newElderflowerInstructionSet returns the elderflower (Shanghai + Cancun) instructions.
-func newElderflowerInstructionSet() JumpTable {
+// newCamelliaInstructionSet returns the camellia (Shanghai + Cancun) instructions.
+func newCamelliaInstructionSet() JumpTable {
 	instructionSet := newMergeInstructionSet()
 	enable3651(&instructionSet)  // EIP-3651: Warm COINBASE
 	enable3855(&instructionSet)  // EIP-3855: PUSH0 opcode

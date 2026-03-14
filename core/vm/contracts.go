@@ -94,10 +94,10 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 }
 
-// PrecompiledContractsElderflower contains the default set of pre-compiled Ethereum
-// contracts used in the Elderflower release (Shanghai + Cancun). This includes EIP-4844
+// PrecompiledContractsCamellia contains the default set of pre-compiled Ethereum
+// contracts used in the Camellia release (Shanghai + Cancun). This includes EIP-4844
 // KZG point evaluation precompile at address 0x0a.
-var PrecompiledContractsElderflower = map[common.Address]PrecompiledContract{
+var PrecompiledContractsCamellia = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{1}):  &ecrecover{},
 	common.BytesToAddress([]byte{2}):  &sha256hash{},
 	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
@@ -127,7 +127,7 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 
 var (
 	PrecompiledAddressesBerlin       []common.Address
-	PrecompiledAddressesElderflower  []common.Address
+	PrecompiledAddressesCamellia  []common.Address
 	PrecompiledAddressesIstanbul     []common.Address
 	PrecompiledAddressesByzantium    []common.Address
 	PrecompiledAddressesHomestead    []common.Address
@@ -146,8 +146,8 @@ func init() {
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
 	}
-	for k := range PrecompiledContractsElderflower {
-		PrecompiledAddressesElderflower = append(PrecompiledAddressesElderflower, k)
+	for k := range PrecompiledContractsCamellia {
+		PrecompiledAddressesCamellia = append(PrecompiledAddressesCamellia, k)
 	}
 }
 

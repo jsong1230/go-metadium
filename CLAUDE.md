@@ -1,7 +1,7 @@
 # go-metadium
 
 ## 프로젝트
-Metadium 블록체인 노드 구현 (go-ethereum fork) — Elderflower fork (Shanghai + Cancun EIPs) 통합 개발 중
+Metadium 블록체인 노드 구현 (go-ethereum fork) — Camellia fork (Shanghai + Cancun EIPs) 통합 개발 중
 
 ## 기술 스택
 - Backend: Go 1.21+
@@ -26,7 +26,7 @@ Metadium 블록체인 노드 구현 (go-ethereum fork) — Elderflower fork (Sha
 ## 브랜치 전략
 - `master` — upstream/master 동기화 (공식 릴리스)
 - `develop` — 개발 메인 브랜치 (origin push 기본)
-- `feature/elderflower-evm` — Elderflower 구현
+- `feature/camellia-evm` — Camellia 구현
 
 ## 프로젝트 관리
 - 방식: file

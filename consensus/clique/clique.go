@@ -347,13 +347,13 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	}
 
 	// EIP-4844: Verify ExcessBlobGas field
-	if !chain.Config().IsElderflower(header.Number) {
+	if !chain.Config().IsCamellia(header.Number) {
 		if header.ExcessBlobGas != nil {
-			return fmt.Errorf("invalid excessBlobGas: have %v, expected <nil> (before Elderflower)", header.ExcessBlobGas)
+			return fmt.Errorf("invalid excessBlobGas: have %v, expected <nil> (before Camellia)", header.ExcessBlobGas)
 		}
 	} else {
 		if header.ExcessBlobGas == nil {
-			return fmt.Errorf("invalid excessBlobGas: expected non-nil value (Elderflower active)")
+			return fmt.Errorf("invalid excessBlobGas: expected non-nil value (Camellia active)")
 		}
 	}
 
@@ -580,8 +580,8 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	// EIP-4844: Calculate and set ExcessBlobGas for Elderflower fork
-	if chain.Config().IsElderflower(header.Number) {
+	// EIP-4844: Calculate and set ExcessBlobGas for Camellia fork
+	if chain.Config().IsCamellia(header.Number) {
 		// Get parent block body to calculate blob gas used
 		parentBlock := chain.GetHeader(header.ParentHash, number-1)
 		if parentBlock != nil && parentBlock.ExcessBlobGas != nil {

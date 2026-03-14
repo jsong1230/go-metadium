@@ -69,7 +69,7 @@ KZG trusted setup (ceremony)     ⚠️ 이더리움 기존 설정 재사용 가
 
 ## 포크 로드맵 (하드포크 1회)
 
-Shanghai + Cancun을 **단일 포크**로 통합합니다. Phase 1(Durian)과 Phase 2(Elderflower)를 합쳐 Elderflower 하나로 진행합니다.
+Shanghai + Cancun을 **단일 포크**로 통합합니다. Phase 1(Durian)과 Phase 2(Camellia)를 합쳐 Camellia 하나로 진행합니다.
 
 ```
 현재: Bokbunja (Merge 레벨)
@@ -78,7 +78,7 @@ Shanghai + Cancun을 **단일 포크**로 통합합니다. Phase 1(Durian)과 Ph
 [Phase 0] 기반 정비 ── Go 1.21 업그레이드 ✅ 완료
          │
          ▼
-[Phase 1] Elderflower Fork ── Shanghai + Cancun EVM 통합
+[Phase 1] Camellia Fork ── Shanghai + Cancun EVM 통합
          │   EIP-3651, 3855, 3860 (Shanghai)
          │   EIP-1153, 5656, 6780 (Cancun)
          │   EIP-4844 (Blob TX, KZG precompile)
@@ -111,7 +111,7 @@ Shanghai + Cancun을 **단일 포크**로 통합합니다. Phase 1(Durian)과 Ph
 
 ---
 
-## Phase 1: Elderflower Fork — Shanghai + Cancun EVM 통합 (8~10주)
+## Phase 1: Camellia Fork — Shanghai + Cancun EVM 통합 (8~10주)
 
 ### 구현 EIP
 
@@ -141,7 +141,7 @@ Shanghai + Cancun을 **단일 포크**로 통합합니다. Phase 1(Durian)과 Ph
   core/vm/opcodes.go             → BLOBHASH(0x49), BLOBBASEFEE(0x4a)
   core/vm/jump_table.go          → cancunInstructionSet
   core/vm/contracts.go           → KZG point evaluation precompile (0x0a)
-  params/config.go               → ElderflowerBlock
+  params/config.go               → CamelliaBlock
   params/protocol_params.go      → BlobTxMinBlobGasprice, BlobTxBlobGasPerBlob 등
   core/blockchain.go             → blob sidecar 처리
 
@@ -170,14 +170,14 @@ const (
 type ChainConfig struct {
     // ... 기존 필드들 ...
     BokbunjaBlock     *big.Int  // 현재 최신
-    ElderflowerBlock  *big.Int  // NEW: Shanghai + Cancun 통합
+    CamelliaBlock  *big.Int  // NEW: Shanghai + Cancun 통합
 }
 
 // 테스트넷: 먼저 적용
-ElderflowerBlock: big.NewInt(XXXXXXX),
+CamelliaBlock: big.NewInt(XXXXXXX),
 
 // 메인넷: 거버넌스 투표 후 결정
-ElderflowerBlock: nil,  // TBD
+CamelliaBlock: nil,  // TBD
 ```
 
 ---
@@ -201,7 +201,7 @@ ElderflowerBlock: nil,  // TBD
 master (현재 안정)
 │
 ├── feature/phase0-infra        ← Go 1.21 업그레이드 ✅ 완료
-├── feature/phase1-elderflower  ← Shanghai + Cancun 통합 포크
+├── feature/phase1-camellia  ← Shanghai + Cancun 통합 포크
 └── feature/phase2-figberry     ← Prague 포크 (미래)
 
 배포 순서:

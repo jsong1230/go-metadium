@@ -75,7 +75,7 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	}
 
 	// EIP-4844: Validate blob gas per block limit
-	if v.bc.Config().IsElderflower(header.Number) {
+	if v.bc.Config().IsCamellia(header.Number) {
 		var totalBlobGas uint64
 		for _, tx := range block.Transactions() {
 			if len(tx.BlobHashes()) > 0 {

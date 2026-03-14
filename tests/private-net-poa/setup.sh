@@ -21,7 +21,7 @@ err()  { echo "[ERROR] $*" >&2; exit 1; }
 
 [[ -x "$GMET_BIN" ]] || err "gmet 바이너리 없음: $GMET_BIN"
 
-log "=== PoA 프라이빗 네트워크 초기화 시작 (chainId=$NETWORKID, ElderflowerFork=100) ==="
+log "=== PoA 프라이빗 네트워크 초기화 시작 (chainId=$NETWORKID, CamelliaFork=100) ==="
 
 # 기존 데이터 정리
 log "기존 데이터 정리..."
@@ -123,7 +123,7 @@ cat > genesis.json <<EOF
     "pangyoBlock": 0,
     "applepieBlock": 0,
     "bokbunjaBlock": 0,
-    "elderflowerBlock": 100
+    "camelliaBlock": 100
   },
   "difficulty": "0x1",
   "extraData": "0x${NODE1_ID}",
@@ -170,4 +170,4 @@ log "  node2 (sync):     http://localhost:8546"
 log "  node3 (sync):     http://localhost:8547"
 log ""
 log "Phase 1: node1이 블록 생성 (거버넌스 없이 bootnode 단독 채굴)"
-log "ElderflowerFork 활성화: block 100 (약 3-4분 후)"
+log "CamelliaFork 활성화: block 100 (약 3-4분 후)"

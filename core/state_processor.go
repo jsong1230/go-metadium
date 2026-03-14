@@ -101,7 +101,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles())
 
 	// EIP-4844: Verify blob gas against per-block limit
-	if p.config.IsElderflower(blockNumber) && totalBlobGasUsed > params.MaxBlobGasPerBlock {
+	if p.config.IsCamellia(blockNumber) && totalBlobGasUsed > params.MaxBlobGasPerBlock {
 		return nil, nil, 0, big.NewInt(0), fmt.Errorf("blob gas %d exceeds per-block limit %d", totalBlobGasUsed, params.MaxBlobGasPerBlock)
 	}
 

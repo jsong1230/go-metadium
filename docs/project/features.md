@@ -355,7 +355,7 @@
   - Backward compatible before fork block
   - Tests verify gas cost changes
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -374,7 +374,7 @@
   - Smart contracts can use PUSH0
   - Tests verify opcode behavior
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -392,7 +392,7 @@
   - Error message is clear
   - Tests verify limit enforcement
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -412,7 +412,7 @@
   - Smart contracts can use transient storage
   - Tests verify behavior and gas costs
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -432,7 +432,7 @@
   - Smart contracts can use MCOPY
   - Tests verify behavior and gas costs
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -451,7 +451,7 @@
   - Contract storage is cleared correctly
   - Tests verify behavior
 - **Dependencies**: F-18
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -484,7 +484,7 @@
   - Initial max blob count is 2 per block
   - Tests verify all components
 - **Dependencies**: F-18, F-06 (Fee Delegation compatibility)
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork)
 
 ---
 
@@ -503,7 +503,7 @@
   - RPC methods support blob fee delegation
   - Tests verify correctness
 - **Dependencies**: F-06, F-25
-- **Milestone**: M-1 (Phase 1 - Elderflower Fork) or M-2 (Phase 2)
+- **Milestone**: M-1 (Phase 1 - Camellia Fork) or M-2 (Phase 2)
 
 ---
 
@@ -702,5 +702,5 @@ F-28 (Testing Suite) ──> F-30 (Performance Optimization)
 - Fee Delegation (F-06) is backward compatible and must continue to work after all forks
 - ETCD coordination (F-08) timing needs adjustment for EIP-4844 blob propagation
 - All PoS-specific EIPs (4895, 4788, 7251) are excluded as Metadium uses SPoA
-- Phase 1 (Elderflower) consolidates Shanghai + Cancun EIPs into a single fork
+- Phase 1 (Camellia) consolidates Shanghai + Cancun EIPs into a single fork
 - Phase 2 (Figberry) will be planned after Prague spec is finalized

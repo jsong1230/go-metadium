@@ -254,7 +254,7 @@ type TxPool struct {
 	// fee delegation
 	feedelegation bool // Fork indicator whether we are using fee delegation type transactions.
 	// EIP-4844: Blob transaction support
-	elderflower bool // Fork indicator whether we are in the elderflower stage (blob transactions).
+	camellia bool // Fork indicator whether we are in the camellia stage (blob transactions).
 	// Add TRS
 	trsListMap   map[common.Address]bool
 	trsSubscribe bool
@@ -777,7 +777,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// EIP-4844: Validate blob transaction fields
 	if tx.Type() == types.BlobTxType {
-		if !pool.elderflower {
+		if !pool.camellia {
 			return ErrTxTypeNotSupported
 		}
 		// Check that blob transaction has blobs
@@ -1469,7 +1469,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// fee delegation
 	pool.feedelegation = pool.chainconfig.IsApplepie(next)
 	// EIP-4844: Blob transactions
-	pool.elderflower = pool.chainconfig.IsElderflower(next)
+	pool.camellia = pool.chainconfig.IsCamellia(next)
 	// Add TRS
 	if !metaminer.IsPoW() {
 		pool.trsListMap, pool.trsSubscribe, _ = metaminer.GetTRSListMap(newHead.Number)

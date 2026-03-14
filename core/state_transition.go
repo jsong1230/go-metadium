@@ -300,7 +300,7 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	// EIP-4844: Validate blob transaction fields
-	if st.evm.ChainConfig().IsElderflower(st.evm.Context.BlockNumber) && len(st.msg.BlobHashes()) > 0 {
+	if st.evm.ChainConfig().IsCamellia(st.evm.Context.BlockNumber) && len(st.msg.BlobHashes()) > 0 {
 		// Validate MaxFeePerBlobGas
 		blobBaseFee := types.CalcBlobBaseFee(st.evm.Context.ExcessBlobGas)
 		if st.msg.MaxFeePerBlobGas() == nil || st.msg.MaxFeePerBlobGas().Cmp(blobBaseFee) < 0 {
@@ -379,7 +379,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if rules.IsBerlin {
 		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
 		// EIP-3651: Warm COINBASE
-		if rules.IsElderflower {
+		if rules.IsCamellia {
 			st.state.AddAddressToAccessList(st.evm.Context.Coinbase)
 		}
 	}

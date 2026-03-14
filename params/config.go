@@ -161,7 +161,7 @@ var (
 		PangyoBlock:         big.NewInt(73_225_410),
 		ApplepieBlock:       big.NewInt(73_225_410),
 		BokbunjaBlock:       big.NewInt(73_225_410),
-		ElderflowerBlock:    nil, // Not yet activated on mainnet
+		CamelliaBlock:    nil, // Not yet activated on mainnet
 		Ethash:              new(EthashConfig),
 	}
 
@@ -185,7 +185,7 @@ var (
 		PangyoBlock:         big.NewInt(44_671_396),
 		ApplepieBlock:       big.NewInt(44_671_396),
 		BokbunjaBlock:       big.NewInt(44_671_396),
-		ElderflowerBlock:    nil, // Not yet activated on testnet
+		CamelliaBlock:    nil, // Not yet activated on testnet
 		Ethash:              new(EthashConfig),
 	}
 
@@ -331,7 +331,7 @@ var (
 		PangyoBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
-		ElderflowerBlock:    big.NewInt(0),
+		CamelliaBlock:    big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              new(EthashConfig),
 		Clique:              nil,
@@ -364,7 +364,7 @@ var (
 		PangyoBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
-		ElderflowerBlock:    big.NewInt(0),
+		CamelliaBlock:    big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              nil,
 		Clique:              &CliqueConfig{Period: 0, Epoch: 30000},
@@ -392,7 +392,7 @@ var (
 		PangyoBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
-		ElderflowerBlock:    big.NewInt(0),
+		CamelliaBlock:    big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              new(EthashConfig),
 		Clique:              nil,
@@ -481,7 +481,7 @@ type ChainConfig struct {
 	PangyoBlock         *big.Int `json:"pangyoBlock,omitempty"`         // Pangyo switch block (nil = no fork, 0 = already on pangyo)
 	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on applepie)
 	BokbunjaBlock       *big.Int `json:"bokbunjaBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on applepie)
-	ElderflowerBlock    *big.Int `json:"elderflowerBlock,omitempty"`     // Elderflower (Shanghai + Cancun) switch block (nil = no fork, 0 = already on elderflower)
+	CamelliaBlock    *big.Int `json:"camelliaBlock,omitempty"`     // Camellia (Shanghai + Cancun) switch block (nil = no fork, 0 = already on camellia)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -522,7 +522,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, MergeFork: %v, AvocadoFork: %v, PangyoFork: %v, ApplepieFork: %v, BokbunjaFork: %v, ElderflowerFork: %v, Terminal TD: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, MergeFork: %v, AvocadoFork: %v, PangyoFork: %v, ApplepieFork: %v, BokbunjaFork: %v, CamelliaFork: %v, Terminal TD: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -543,7 +543,7 @@ func (c *ChainConfig) String() string {
 		c.PangyoBlock,
 		c.ApplepieBlock,
 		c.BokbunjaBlock,
-		c.ElderflowerBlock,
+		c.CamelliaBlock,
 		c.TerminalTotalDifficulty,
 		engine,
 	)
@@ -621,9 +621,9 @@ func (c *ChainConfig) IsBokbunja(num *big.Int) bool {
 	return isForked(c.BokbunjaBlock, num)
 }
 
-// IsElderflower returns whether num is either equal to the Elderflower (Shanghai+Cancun) fork block or greater.
-func (c *ChainConfig) IsElderflower(num *big.Int) bool {
-	return isForked(c.ElderflowerBlock, num)
+// IsCamellia returns whether num is either equal to the Camellia (Shanghai+Cancun) fork block or greater.
+func (c *ChainConfig) IsCamellia(num *big.Int) bool {
+	return isForked(c.CamelliaBlock, num)
 }
 
 // fee delegation
@@ -701,7 +701,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "pangyoBlock", block: c.PangyoBlock},
 		{name: "applepieBlock", block: c.ApplepieBlock},
 		{name: "bokbunjaBlock", block: c.BokbunjaBlock},
-		{name: "elderflowerBlock", block: c.ElderflowerBlock},
+		{name: "camelliaBlock", block: c.CamelliaBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -777,8 +777,8 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.MergeForkBlock, newcfg.MergeForkBlock, head) {
 		return newCompatError("Merge Start fork block", c.MergeForkBlock, newcfg.MergeForkBlock)
 	}
-	if isForkIncompatible(c.ElderflowerBlock, newcfg.ElderflowerBlock, head) {
-		return newCompatError("Elderflower fork block", c.ElderflowerBlock, newcfg.ElderflowerBlock)
+	if isForkIncompatible(c.CamelliaBlock, newcfg.CamelliaBlock, head) {
+		return newCompatError("Camellia fork block", c.CamelliaBlock, newcfg.CamelliaBlock)
 	}
 	return nil
 }
@@ -852,7 +852,7 @@ type Rules struct {
 	IsAvocado                                               bool
 	IsPangyo, IsApplepie                                    bool
 	IsBokbunja                                              bool
-	IsElderflower                                            bool // Shanghai + Cancun EIPs
+	IsCamellia                                            bool // Shanghai + Cancun EIPs
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -878,6 +878,6 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool) Rules {
 		IsPangyo:         c.IsPangyo(num),
 		IsApplepie:       c.IsApplepie(num),
 		IsBokbunja:       c.IsBokbunja(num),
-		IsElderflower:     c.IsElderflower(num),
+		IsCamellia:     c.IsCamellia(num),
 	}
 }

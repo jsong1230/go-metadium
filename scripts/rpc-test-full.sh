@@ -147,7 +147,7 @@ LATEST_HASH=$(echo "$LATEST_RESP" | python3 -c "import json,sys; print(json.load
 BLOCK1_RESP=$(rpc "eth_getBlockByNumber" '["0x1",false]')
 BLOCK1_HASH=$(echo "$BLOCK1_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['hash'])" 2>/dev/null || echo "")
 
-echo -e "${D}  네트워크: chainId=1337 | block=$BLOCK_DEC | ElderflowerFork=100${N}"
+echo -e "${D}  네트워크: chainId=1337 | block=$BLOCK_DEC | CamelliaFork=100${N}"
 echo -e "${D}  테스트 계정: $ACCT1${N}"
 
 TX_HASH=""
@@ -171,7 +171,7 @@ sec "2. eth_* — 체인/동기화"
 resp=$(rpc "eth_chainId"); v=$(echo "$resp" | jq_int)
 [[ "$v" == "1337" ]] && pass "eth_chainId = $v" || fail "eth_chainId" "$v"
 resp=$(rpc "eth_blockNumber"); v=$(echo "$resp" | jq_int)
-[[ "$v" -gt 100 ]] && pass "eth_blockNumber = $v (ElderflowerFork 활성화)" || fail "eth_blockNumber" "$v"
+[[ "$v" -gt 100 ]] && pass "eth_blockNumber = $v (CamelliaFork 활성화)" || fail "eth_blockNumber" "$v"
 resp=$(rpc "eth_syncing"); v=$(echo "$resp" | jq_bool)
 [[ "$v" == "False" ]] && pass "eth_syncing = false" || warn "eth_syncing" "$v"
 resp=$(rpc "eth_coinbase"); v=$(echo "$resp" | jq_str)
@@ -544,7 +544,7 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-sec "13. Elderflower EIP opcodes (eth_call)"
+sec "13. Camellia EIP opcodes (eth_call)"
 
 evm_call "EIP-3855 PUSH0 (0x5F)=0"              "0x5f60005260206000f3"             "0"
 evm_call "EIP-4844 BLOBBASEFEE (0x4A)=1 wei"    "0x4a60005260206000f3"             "1"

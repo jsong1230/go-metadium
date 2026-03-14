@@ -1431,8 +1431,8 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		log.Error("Failed to prepare header for sealing", "err", err)
 		return nil, err
 	}
-	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork blocks.
-	if w.chainConfig.IsElderflower(header.Number) && header.ExcessBlobGas == nil {
+	// EIP-4844: Initialize ExcessBlobGas for Camellia fork blocks.
+	if w.chainConfig.IsCamellia(header.Number) && header.ExcessBlobGas == nil {
 		parentExcessBlobGas := parent.Header().ExcessBlobGas
 		if parentExcessBlobGas == nil {
 			parentExcessBlobGas = big.NewInt(0)
@@ -1547,8 +1547,8 @@ func (w *worker) refreshPending(locked bool) {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
-	// EIP-4844: Initialize ExcessBlobGas for Elderflower fork blocks.
-	if w.chainConfig.IsElderflower(header.Number) && header.ExcessBlobGas == nil {
+	// EIP-4844: Initialize ExcessBlobGas for Camellia fork blocks.
+	if w.chainConfig.IsCamellia(header.Number) && header.ExcessBlobGas == nil {
 		parentExcessBlobGas := parent.Header().ExcessBlobGas
 		if parentExcessBlobGas == nil {
 			parentExcessBlobGas = big.NewInt(0)

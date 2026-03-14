@@ -53,7 +53,7 @@ for port in 8545 8546 8547; do
 done
 
 log ""
-log "ElderflowerFork 활성화 블록: 100"
+log "CamelliaFork 활성화 블록: 100"
 log ""
 log "유용한 명령:"
 log "  블록 모니터링: watch -n1 'curl -sf -X POST -H \"Content-Type: application/json\" --data \"{\\\"jsonrpc\\\":\\\"2.0\\\",\\\"method\\\":\\\"eth_blockNumber\\\",\\\"params\\\":[],\\\"id\\\":1}\" http://localhost:8545'"
