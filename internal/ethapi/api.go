@@ -699,7 +699,25 @@ func (s *PublicBlockChainAPI) BlockNumber() hexutil.Uint64 {
 	return hexutil.Uint64(header.Number.Uint64())
 }
 
-// GetBlockReceipts returns all the transaction receipts for the given block hash.
+// BlobBaseFee returns the base fee for blob transactions in the latest block (EIP-4844).
+func (s *PublicBlockChainAPI) BlobBaseFee(ctx context.Context) (*hexutil.Big, error) {
+	header, err := s.b.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return (*hexutil.Big)(types.CalcBlobBaseFee(header.ExcessBlobGas)), nil
+}
+
+// GetBlockReceipts returns all the transaction receipts for the given block number or hash (EIP-4844 era standard).
+func (s *PublicBlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]map[string]interface{}, error) {
+	block, err := s.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+	if block == nil || err != nil {
+		return nil, err
+	}
+	return s.GetReceiptsByHash(ctx, block.Hash())
+}
+
+// GetReceiptsByHash returns all the transaction receipts for the given block hash.
 func (s *PublicBlockChainAPI) GetReceiptsByHash(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
 
 	block, err1 := s.b.BlockByHash(ctx, blockHash)
@@ -2075,6 +2093,52 @@ type PublicDebugAPI struct {
 // of the Ethereum service.
 func NewPublicDebugAPI(b Backend) *PublicDebugAPI {
 	return &PublicDebugAPI{b: b}
+}
+
+// GetRawHeader retrieves the RLP-encoded block header for the given block number or hash.
+func (api *PublicDebugAPI) GetRawHeader(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (hexutil.Bytes, error) {
+	var hash common.Hash
+	if h, ok := blockNrOrHash.Hash(); ok {
+		hash = h
+	} else {
+		block, err := api.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+		if err != nil {
+			return nil, err
+		}
+		hash = block.Hash()
+	}
+	header, err := api.b.HeaderByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	if header == nil {
+		return nil, fmt.Errorf("header not found: %v", blockNrOrHash)
+	}
+	return rlp.EncodeToBytes(header)
+}
+
+// GetRawBlock retrieves the RLP-encoded block for the given block number or hash.
+func (api *PublicDebugAPI) GetRawBlock(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (hexutil.Bytes, error) {
+	block, err := api.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		return nil, err
+	}
+	if block == nil {
+		return nil, fmt.Errorf("block not found: %v", blockNrOrHash)
+	}
+	return rlp.EncodeToBytes(block)
+}
+
+// GetRawTransaction returns the binary-encoded bytes of the transaction for the given hash.
+func (api *PublicDebugAPI) GetRawTransaction(ctx context.Context, hash common.Hash) (hexutil.Bytes, error) {
+	tx, _, _, _, err := api.b.GetTransaction(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, nil
+	}
+	return tx.MarshalBinary()
 }
 
 // GetHeaderRlp retrieves the RLP encoded for of a single header.

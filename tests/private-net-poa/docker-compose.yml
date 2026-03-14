@@ -44,14 +44,21 @@ services:
       --http
       --http.addr 0.0.0.0
       --http.port 8545
-      --http.api eth,net,web3,admin,miner,txpool,debug
+      --http.api eth,net,web3,admin,miner,txpool,debug,personal
       --http.corsdomain "*"
       --http.vhosts "*"
+      --ws
+      --ws.addr 0.0.0.0
+      --ws.port 8546
+      --ws.api eth,net,web3,admin,txpool,debug
       --port 30303
       --nat extip:172.31.0.11
       --maxpeers 10
       --verbosity 3
       --userocksdb 1
+      --unlock 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+      --password /data/geth/password.txt
+      --allow-insecure-unlock
 
   node2:
     <<: *gmet-common
