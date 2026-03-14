@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -1119,31 +1120,56 @@ func (c *kzg4844PointEvaluation) RequiredGas(input []byte) uint64 {
 //   - y (field element, 32 bytes)
 //   - commitment (48 bytes)
 //   - proof (48 bytes)
+//
 // Total: 192 bytes
 //
-// Output:
-//   - On success: empty (0 bytes), precompile execution continues
-//   - On failure: returns error (KZG proof verification failed)
+// Output on success (64 bytes):
+//   - FIELD_ELEMENTS_PER_BLOB as uint256 (32 bytes, big-endian)
+//   - BLS_MODULUS as uint256 (32 bytes, big-endian)
+//
+// Returns error if inputs are invalid or KZG proof verification fails.
 func (c *kzg4844PointEvaluation) Run(input []byte) ([]byte, error) {
-	// Minimum input length: 192 bytes (as per EIP-4844)
-	if len(input) < 192 {
+	// EIP-4844 requires exactly 192 bytes of input.
+	if len(input) != 192 {
 		return nil, errors.New("invalid input length for KZG point evaluation")
 	}
 
-	// Extract fields from input
-	// versioned_hash := input[0:32]  // not used directly in verification
-	z := input[32:64]       // evaluation point
-	y := input[64:96]       // evaluation result
-	commitment := input[96:144]   // KZG commitment (48 bytes)
-	proof := input[144:192] // KZG proof (48 bytes)
+	// Parse input fields:
+	//   [0:32]   versioned_hash
+	//   [32:64]  z (evaluation point, big-endian field element)
+	//   [64:96]  y (claimed value, big-endian field element)
+	//   [96:144] commitment (48-byte G1 point, compressed)
+	//   [144:192] proof     (48-byte G1 point, compressed)
+	var versionedHash [32]byte
+	var z, y [32]byte
+	var commitment, proof [48]byte
 
-	// TODO: Implement actual KZG verification
-	// For now, this is a stub that accepts all valid input formats
-	_ = z
-	_ = y
-	_ = commitment
-	_ = proof
+	copy(versionedHash[:], input[0:32])
+	copy(z[:], input[32:64])
+	copy(y[:], input[64:96])
+	copy(commitment[:], input[96:144])
+	copy(proof[:], input[144:192])
 
-	// Return empty byte array on success (per EIP-4844)
-	return []byte{}, nil
+	// Verify the KZG proof (includes commitment→versioned_hash check).
+	if err := kzg4844.VerifyKZGProof(versionedHash, z, y, commitment, proof); err != nil {
+		return nil, err
+	}
+
+	// On success, return FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS (64 bytes total).
+	// FIELD_ELEMENTS_PER_BLOB as a 32-byte big-endian uint256.
+	result := make([]byte, 64)
+	fieldElements := uint64(kzg4844.FieldElementsPerBlob)
+	result[24] = byte(fieldElements >> 56)
+	result[25] = byte(fieldElements >> 48)
+	result[26] = byte(fieldElements >> 40)
+	result[27] = byte(fieldElements >> 32)
+	result[28] = byte(fieldElements >> 24)
+	result[29] = byte(fieldElements >> 16)
+	result[30] = byte(fieldElements >> 8)
+	result[31] = byte(fieldElements)
+	// BLS_MODULUS as a 32-byte big-endian uint256.
+	blsModulus := kzg4844.BLSModulus
+	copy(result[32:64], blsModulus[:])
+
+	return result, nil
 }

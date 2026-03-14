@@ -29,9 +29,12 @@ if echo "$COMMAND" | grep -qiE '(deploy|kubectl apply|helm upgrade|helm install|
 fi
 
 # 3. 시스템 경로 쓰기 차단 (/etc, /usr, /var, /sys, /boot)
+# ssh 원격 명령은 허용 (원격 서버 작업)
 if echo "$COMMAND" | grep -qE '(>|>>|tee|cp |mv |rm |chmod |chown |install |ln -s?f? )[^;|&]*/(etc|usr|var|sys|boot)/'; then
-  echo "❌ [Tier3-Guard] 시스템 경로(/etc, /usr, /var, /sys, /boot) 수정은 금지됩니다." >&2
-  exit 2
+  if ! echo "$COMMAND" | grep -qE "^ssh "; then
+    echo "❌ [Tier3-Guard] 시스템 경로(/etc, /usr, /var, /sys, /boot) 수정은 금지됩니다." >&2
+    exit 2
+  fi
 fi
 
 exit 0
