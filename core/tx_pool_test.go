@@ -104,6 +104,11 @@ func pricedDataTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key
 	return tx
 }
 
+func pricedDataTransactionWithBytes(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ecdsa.PrivateKey, data []byte) *types.Transaction {
+	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(0), gaslimit, gasprice, data), types.HomesteadSigner{}, key)
+	return tx
+}
+
 func dynamicFeeTx(nonce uint64, gaslimit uint64, gasFee *big.Int, tip *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
 	tx, _ := types.SignNewTx(key, types.LatestSignerForChainID(params.TestChainConfig.ChainID), &types.DynamicFeeTx{
 		ChainID:    params.TestChainConfig.ChainID,
@@ -1198,8 +1203,13 @@ func TestTransactionPendingGlobalLimiting(t *testing.T) {
 func TestTransactionAllowedTxSize(t *testing.T) {
 	t.Parallel()
 
-	// Create a test account and fund it
-	pool, key := setupTxPool()
+	// Create a test account and fund it.
+	// Use a larger gas limit (30M) to accommodate EIP-7623 floor gas on large calldata txs.
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	blockchain := &testBlockChain{30000000, statedb, new(event.Feed)}
+	key, _ := crypto.GenerateKey()
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain)
+	<-pool.initDoneCh
 	defer pool.Stop()
 
 	account := crypto.PubkeyToAddress(key.PublicKey)
@@ -1218,8 +1228,16 @@ func TestTransactionAllowedTxSize(t *testing.T) {
 	baseSize := uint64(213)
 	dataSize := txMaxSize - baseSize
 
+	// With EIP-7623 (Doraji), large calldata txs require floor gas which may exceed
+	// the default pool gas limit. Use the calculated intrinsic gas as the gas limit.
+	dataBytes := make([]byte, dataSize)
+	rand.Read(dataBytes)
+	gasForMaxTx, _ := IntrinsicGas(dataBytes, nil, false, true, true, pool.doraji)
+	if gasForMaxTx < pool.currentMaxGas {
+		gasForMaxTx = pool.currentMaxGas
+	}
 	// Try adding a transaction with maximal allowed size
-	tx := pricedDataTransaction(0, pool.currentMaxGas, big.NewInt(1), key, dataSize)
+	tx := pricedDataTransactionWithBytes(0, gasForMaxTx, big.NewInt(1), key, dataBytes)
 	if err := pool.addRemoteSync(tx); err != nil {
 		t.Fatalf("failed to add transaction of size %d, close to maximal: %v", int(tx.Size()), err)
 	}

@@ -162,6 +162,7 @@ var (
 		ApplepieBlock:       big.NewInt(73_225_410),
 		BokbunjaBlock:       big.NewInt(73_225_410),
 		CamelliaBlock:    nil, // Not yet activated on mainnet
+		DorajiBlock:      nil, // Not yet activated on mainnet
 		Ethash:              new(EthashConfig),
 	}
 
@@ -186,6 +187,7 @@ var (
 		ApplepieBlock:       big.NewInt(44_671_396),
 		BokbunjaBlock:       big.NewInt(44_671_396),
 		CamelliaBlock:    nil, // Not yet activated on testnet
+		DorajiBlock:      nil, // Not yet activated on testnet
 		Ethash:              new(EthashConfig),
 	}
 
@@ -332,6 +334,7 @@ var (
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
 		CamelliaBlock:    big.NewInt(0),
+		DorajiBlock:      big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              new(EthashConfig),
 		Clique:              nil,
@@ -365,6 +368,7 @@ var (
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
 		CamelliaBlock:    big.NewInt(0),
+		DorajiBlock:      big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              nil,
 		Clique:              &CliqueConfig{Period: 0, Epoch: 30000},
@@ -393,6 +397,7 @@ var (
 		ApplepieBlock:       big.NewInt(0),
 		BokbunjaBlock:       big.NewInt(0),
 		CamelliaBlock:    big.NewInt(0),
+		DorajiBlock:      big.NewInt(0),
 		TerminalTotalDifficulty: nil,
 		Ethash:              new(EthashConfig),
 		Clique:              nil,
@@ -448,6 +453,13 @@ type CheckpointOracleConfig struct {
 	Threshold uint64           `json:"threshold"`
 }
 
+// BlobSchedule defines blob gas parameters for a specific fork (EIP-7840).
+type BlobSchedule struct {
+	Target                uint64 `json:"target"`                // target blob count per block
+	Max                   uint64 `json:"max"`                   // max blob count per block
+	BaseFeeUpdateFraction uint64 `json:"baseFeeUpdateFraction"` // blob base fee update fraction
+}
+
 // ChainConfig is the core config which determines the blockchain settings.
 //
 // ChainConfig is stored in the database on a per block basis. This means
@@ -482,6 +494,11 @@ type ChainConfig struct {
 	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on applepie)
 	BokbunjaBlock       *big.Int `json:"bokbunjaBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on applepie)
 	CamelliaBlock    *big.Int `json:"camelliaBlock,omitempty"`     // Camellia (Shanghai + Cancun) switch block (nil = no fork, 0 = already on camellia)
+	DorajiBlock      *big.Int `json:"dorajiBlock,omitempty"`       // Doraji (Prague) switch block (nil = no fork, 0 = already on doraji)
+
+	// Blob schedule per fork (EIP-7840)
+	CamelliaBlobSchedule *BlobSchedule `json:"camelliaBlobSchedule,omitempty"`
+	DorajiBlobSchedule   *BlobSchedule `json:"dorajiBlobSchedule,omitempty"`
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -522,7 +539,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, MergeFork: %v, AvocadoFork: %v, PangyoFork: %v, ApplepieFork: %v, BokbunjaFork: %v, CamelliaFork: %v, Terminal TD: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, MergeFork: %v, AvocadoFork: %v, PangyoFork: %v, ApplepieFork: %v, BokbunjaFork: %v, CamelliaFork: %v, DorajiFork: %v, Terminal TD: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -544,6 +561,7 @@ func (c *ChainConfig) String() string {
 		c.ApplepieBlock,
 		c.BokbunjaBlock,
 		c.CamelliaBlock,
+		c.DorajiBlock,
 		c.TerminalTotalDifficulty,
 		engine,
 	)
@@ -626,6 +644,22 @@ func (c *ChainConfig) IsCamellia(num *big.Int) bool {
 	return isForked(c.CamelliaBlock, num)
 }
 
+// IsDoraji returns whether num is either equal to the Doraji (Prague) fork block or greater.
+func (c *ChainConfig) IsDoraji(num *big.Int) bool {
+	return isForked(c.DorajiBlock, num)
+}
+
+// ActiveBlobSchedule returns the blob schedule for the given block number (EIP-7840).
+func (c *ChainConfig) ActiveBlobSchedule(blockNum *big.Int) *BlobSchedule {
+	if c.IsDoraji(blockNum) && c.DorajiBlobSchedule != nil {
+		return c.DorajiBlobSchedule
+	}
+	if c.IsCamellia(blockNum) && c.CamelliaBlobSchedule != nil {
+		return c.CamelliaBlobSchedule
+	}
+	return nil
+}
+
 // fee delegation
 // IsApplepie returns whether num is either equal to the Applepie fork block or greater.
 func (c *ChainConfig) IsApplepie(num *big.Int) bool {
@@ -702,6 +736,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "applepieBlock", block: c.ApplepieBlock},
 		{name: "bokbunjaBlock", block: c.BokbunjaBlock},
 		{name: "camelliaBlock", block: c.CamelliaBlock},
+		{name: "dorajiBlock", block: c.DorajiBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -780,6 +815,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.CamelliaBlock, newcfg.CamelliaBlock, head) {
 		return newCompatError("Camellia fork block", c.CamelliaBlock, newcfg.CamelliaBlock)
 	}
+	if isForkIncompatible(c.DorajiBlock, newcfg.DorajiBlock, head) {
+		return newCompatError("Doraji fork block", c.DorajiBlock, newcfg.DorajiBlock)
+	}
 	return nil
 }
 
@@ -853,6 +891,7 @@ type Rules struct {
 	IsPangyo, IsApplepie                                    bool
 	IsBokbunja                                              bool
 	IsCamellia                                            bool // Shanghai + Cancun EIPs
+	IsDoraji                                              bool // Prague EIPs
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -879,5 +918,6 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool) Rules {
 		IsApplepie:       c.IsApplepie(num),
 		IsBokbunja:       c.IsBokbunja(num),
 		IsCamellia:     c.IsCamellia(num),
+		IsDoraji:       c.IsDoraji(num),
 	}
 }

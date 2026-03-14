@@ -55,7 +55,8 @@ var (
 	berlinInstructionSet           = newBerlinInstructionSet()
 	londonInstructionSet           = newLondonInstructionSet()
 	mergeInstructionSet            = newMergeInstructionSet()
-	camelliaInstructionSet      = newCamelliaInstructionSet()
+	camelliaInstructionSet         = newCamelliaInstructionSet()
+	dorajiInstructionSet           = newDorajiInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
@@ -1057,4 +1058,10 @@ func newCamelliaInstructionSet() JumpTable {
 	enable6780(&instructionSet)  // EIP-6780: SELFDESTRUCT Limit
 	enable4844(&instructionSet)  // EIP-4844: Blob Transactions (BLOBHASH/BLOBBASEFEE)
 	return validate(instructionSet)
+}
+
+// newDorajiInstructionSet returns the Doraji (Prague) instructions.
+// Doraji inherits all Camellia opcodes; EIP-7702 (SetCode) adds no new opcodes.
+func newDorajiInstructionSet() JumpTable {
+	return newCamelliaInstructionSet()
 }

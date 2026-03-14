@@ -145,6 +145,7 @@ const (
 	Bn256PairingPerPointGasByzantium uint64 = 80000  // Byzantium per-point price for an elliptic curve pairing check
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
+	// BLS12-381 precompile gas costs (pre-Doraji, legacy values)
 	Bls12381G1AddGas          uint64 = 600    // Price for BLS12-381 elliptic curve G1 point addition
 	Bls12381G1MulGas          uint64 = 12000  // Price for BLS12-381 elliptic curve G1 point scalar multiplication
 	Bls12381G2AddGas          uint64 = 4500   // Price for BLS12-381 elliptic curve G2 point addition
@@ -153,6 +154,16 @@ const (
 	Bls12381PairingPerPairGas uint64 = 23000  // Per-point pair gas price for BLS12-381 elliptic curve pairing check
 	Bls12381MapG1Gas          uint64 = 5500   // Gas price for BLS12-381 mapping field element to G1 operation
 	Bls12381MapG2Gas          uint64 = 110000 // Gas price for BLS12-381 mapping field element to G2 operation
+
+	// BLS12-381 precompile gas costs (Doraji/EIP-2537 final spec)
+	Bls12381G1AddGasDoraji          uint64 = 375   // EIP-2537: G1Add
+	Bls12381G1MulGasDoraji          uint64 = 14400 // EIP-2537: G1Mul
+	Bls12381G2AddGasDoraji          uint64 = 600   // EIP-2537: G2Add
+	Bls12381G2MulGasDoraji          uint64 = 57600 // EIP-2537: G2Mul
+	Bls12381PairingBaseGasDoraji    uint64 = 43300 // EIP-2537: Pairing base
+	Bls12381PairingPerPairGasDoraji uint64 = 32600 // EIP-2537: Pairing per pair
+	Bls12381MapG1GasDoraji          uint64 = 5500  // EIP-2537: MapG1 (unchanged)
+	Bls12381MapG2GasDoraji          uint64 = 75000 // EIP-2537: MapG2
 
 	VrfVerifyGas uint64 = 50000 // @lukepark327: VRF Verify gas price
 
@@ -171,6 +182,16 @@ const (
 	MaxBlobGasPerBlock  uint64 = 786432 // Maximum blob gas per block (6 blobs × 131072)
 	MinBlobBaseFee      uint64 = 1 // Minimum blob base fee (wei)
 	BlobBaseFeeUpdateFraction uint64 = 3338477 // Divisor for blob base fee updates (EIP-4844 standard)
+
+	// EIP-7623: Calldata floor gas cost (Doraji)
+	TxDataTokenCostDoraji   uint64 = 10 // Cost per token (EIP-7623)
+	TxDataNonZeroTokens     uint64 = 4  // Tokens per non-zero byte (EIP-7623)
+	TxDataZeroTokens        uint64 = 1  // Tokens per zero byte (EIP-7623)
+
+	// Doraji (EIP-7691) blob gas constants — used when no BlobSchedule is configured
+	TargetBlobGasPerBlockDoraji     uint64 = 786432 // 6 blobs × 131072
+	MaxBlobGasPerBlockDoraji        uint64 = 1179648 // 9 blobs × 131072
+	BlobBaseFeeUpdateFractionDoraji uint64 = 5007716 // EIP-7691
 
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529

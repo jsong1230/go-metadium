@@ -110,6 +110,33 @@ var PrecompiledContractsCamellia = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{10}): &kzg4844PointEvaluation{}, // EIP-4844
 }
 
+// PrecompiledContractsDoraji contains the precompiles active from the Doraji fork.
+// It extends Camellia with BLS12-381 precompiles (EIP-2537) at addresses 0x0b~0x13
+// using the final Prague gas costs.
+var PrecompiledContractsDoraji = map[common.Address]PrecompiledContract{
+	// Camellia precompiles (0x01~0x0a)
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):  &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):  &blake2F{},
+	common.BytesToAddress([]byte{10}): &kzg4844PointEvaluation{}, // EIP-4844
+	// EIP-2537 BLS12-381 (0x0b~0x13) with Doraji gas costs
+	common.BytesToAddress([]byte{11}): &bls12381G1AddDoraji{},
+	common.BytesToAddress([]byte{12}): &bls12381G1MulDoraji{},
+	common.BytesToAddress([]byte{13}): &bls12381G1MultiExpDoraji{},
+	common.BytesToAddress([]byte{14}): &bls12381G2AddDoraji{},
+	common.BytesToAddress([]byte{15}): &bls12381G2MulDoraji{},
+	common.BytesToAddress([]byte{16}): &bls12381G2MultiExpDoraji{},
+	common.BytesToAddress([]byte{17}): &bls12381PairingDoraji{},
+	common.BytesToAddress([]byte{18}): &bls12381MapG1Doraji{},
+	common.BytesToAddress([]byte{19}): &bls12381MapG2Doraji{},
+}
+
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
 // contracts specified in EIP-2537. These are exported for testing purposes.
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
@@ -127,7 +154,8 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 
 var (
 	PrecompiledAddressesBerlin       []common.Address
-	PrecompiledAddressesCamellia  []common.Address
+	PrecompiledAddressesCamellia     []common.Address
+	PrecompiledAddressesDoraji       []common.Address
 	PrecompiledAddressesIstanbul     []common.Address
 	PrecompiledAddressesByzantium    []common.Address
 	PrecompiledAddressesHomestead    []common.Address
@@ -148,6 +176,9 @@ func init() {
 	}
 	for k := range PrecompiledContractsCamellia {
 		PrecompiledAddressesCamellia = append(PrecompiledAddressesCamellia, k)
+	}
+	for k := range PrecompiledContractsDoraji {
+		PrecompiledAddressesDoraji = append(PrecompiledAddressesDoraji, k)
 	}
 }
 
@@ -1172,4 +1203,100 @@ func (c *kzg4844PointEvaluation) Run(input []byte) ([]byte, error) {
 	copy(result[32:64], blsModulus[:])
 
 	return result, nil
+}
+
+// ---- Doraji (EIP-2537 final spec) BLS12-381 precompiles ----
+// These use the updated gas costs from Prague/EIP-2537 final spec
+// and are placed at addresses 0x0b~0x13 (after KZG4844 at 0x0a).
+
+type bls12381G1AddDoraji struct{}
+
+func (c *bls12381G1AddDoraji) RequiredGas(_ []byte) uint64 { return params.Bls12381G1AddGasDoraji }
+func (c *bls12381G1AddDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G1Add{}).Run(input)
+}
+
+type bls12381G1MulDoraji struct{}
+
+func (c *bls12381G1MulDoraji) RequiredGas(_ []byte) uint64 { return params.Bls12381G1MulGasDoraji }
+func (c *bls12381G1MulDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G1Mul{}).Run(input)
+}
+
+type bls12381G1MultiExpDoraji struct{}
+
+func (c *bls12381G1MultiExpDoraji) RequiredGas(input []byte) uint64 {
+	k := len(input) / 160
+	if k == 0 {
+		return 0
+	}
+	var discount uint64
+	if dLen := len(params.Bls12381MultiExpDiscountTable); k < dLen {
+		discount = params.Bls12381MultiExpDiscountTable[k-1]
+	} else {
+		discount = params.Bls12381MultiExpDiscountTable[dLen-1]
+	}
+	return (uint64(k) * params.Bls12381G1MulGasDoraji * discount) / 1000
+}
+
+func (c *bls12381G1MultiExpDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G1MultiExp{}).Run(input)
+}
+
+type bls12381G2AddDoraji struct{}
+
+func (c *bls12381G2AddDoraji) RequiredGas(_ []byte) uint64 { return params.Bls12381G2AddGasDoraji }
+func (c *bls12381G2AddDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G2Add{}).Run(input)
+}
+
+type bls12381G2MulDoraji struct{}
+
+func (c *bls12381G2MulDoraji) RequiredGas(_ []byte) uint64 { return params.Bls12381G2MulGasDoraji }
+func (c *bls12381G2MulDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G2Mul{}).Run(input)
+}
+
+type bls12381G2MultiExpDoraji struct{}
+
+func (c *bls12381G2MultiExpDoraji) RequiredGas(input []byte) uint64 {
+	k := len(input) / 288
+	if k == 0 {
+		return 0
+	}
+	var discount uint64
+	if dLen := len(params.Bls12381MultiExpDiscountTable); k < dLen {
+		discount = params.Bls12381MultiExpDiscountTable[k-1]
+	} else {
+		discount = params.Bls12381MultiExpDiscountTable[dLen-1]
+	}
+	return (uint64(k) * params.Bls12381G2MulGasDoraji * discount) / 1000
+}
+
+func (c *bls12381G2MultiExpDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381G2MultiExp{}).Run(input)
+}
+
+type bls12381PairingDoraji struct{}
+
+func (c *bls12381PairingDoraji) RequiredGas(input []byte) uint64 {
+	return params.Bls12381PairingBaseGasDoraji + uint64(len(input)/384)*params.Bls12381PairingPerPairGasDoraji
+}
+
+func (c *bls12381PairingDoraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381Pairing{}).Run(input)
+}
+
+type bls12381MapG1Doraji struct{}
+
+func (c *bls12381MapG1Doraji) RequiredGas(_ []byte) uint64 { return params.Bls12381MapG1GasDoraji }
+func (c *bls12381MapG1Doraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381MapG1{}).Run(input)
+}
+
+type bls12381MapG2Doraji struct{}
+
+func (c *bls12381MapG2Doraji) RequiredGas(_ []byte) uint64 { return params.Bls12381MapG2GasDoraji }
+func (c *bls12381MapG2Doraji) Run(input []byte) ([]byte, error) {
+	return (&bls12381MapG2{}).Run(input)
 }

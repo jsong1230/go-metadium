@@ -255,6 +255,7 @@ type TxPool struct {
 	feedelegation bool // Fork indicator whether we are using fee delegation type transactions.
 	// EIP-4844: Blob transaction support
 	camellia bool // Fork indicator whether we are in the camellia stage (blob transactions).
+	doraji   bool // Fork indicator whether we are in the doraji stage (Prague EIPs).
 	// Add TRS
 	trsListMap   map[common.Address]bool
 	trsSubscribe bool
@@ -767,7 +768,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		}
 	}
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul, pool.doraji)
 	if err != nil {
 		return err
 	}
@@ -1470,6 +1471,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.feedelegation = pool.chainconfig.IsApplepie(next)
 	// EIP-4844: Blob transactions
 	pool.camellia = pool.chainconfig.IsCamellia(next)
+	pool.doraji = pool.chainconfig.IsDoraji(next)
 	// Add TRS
 	if !metaminer.IsPoW() {
 		pool.trsListMap, pool.trsSubscribe, _ = metaminer.GetTRSListMap(newHead.Number)

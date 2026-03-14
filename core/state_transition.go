@@ -124,18 +124,19 @@ func (result *ExecutionResult) Revert() []byte {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool) (uint64, error) {
+func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028, isDoraji bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
-	var gas uint64
+	var baseFee uint64
 	if isContractCreation && isHomestead {
-		gas = params.TxGasContractCreation
+		baseFee = params.TxGasContractCreation
 	} else {
-		gas = params.TxGas
+		baseFee = params.TxGas
 	}
+	gas := baseFee
 	// Bump the required gas by the amount of transactional data
+	var nz uint64
 	if len(data) > 0 {
 		// Zero and non-zero bytes are priced differently
-		var nz uint64
 		for _, byt := range data {
 			if byt != 0 {
 				nz++
@@ -160,6 +161,15 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 	if accessList != nil {
 		gas += uint64(len(accessList)) * params.TxAccessListAddressGas
 		gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
+	}
+	// EIP-7623: Apply calldata floor gas cost (Doraji)
+	if isDoraji && len(data) > 0 {
+		z := uint64(len(data)) - nz
+		tokens := nz*params.TxDataNonZeroTokens + z*params.TxDataZeroTokens
+		floorGas := baseFee + tokens*params.TxDataTokenCostDoraji
+		if floorGas > gas {
+			gas = floorGas
+		}
 	}
 	return gas, nil
 }
@@ -361,7 +371,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	)
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
-	gas, err := IntrinsicGas(st.data, st.msg.AccessList(), contractCreation, rules.IsHomestead, rules.IsIstanbul)
+	gas, err := IntrinsicGas(st.data, st.msg.AccessList(), contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsDoraji)
 	if err != nil {
 		return nil, err
 	}

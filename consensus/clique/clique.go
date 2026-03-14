@@ -580,14 +580,12 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	// EIP-4844: Calculate and set ExcessBlobGas for Camellia fork
+	// EIP-4844 / EIP-7840: Calculate and set ExcessBlobGas (Camellia and Doraji forks)
 	if chain.Config().IsCamellia(header.Number) {
-		// Get parent block body to calculate blob gas used
+		// Get parent block header to derive blob gas
 		parentBlock := chain.GetHeader(header.ParentHash, number-1)
 		if parentBlock != nil && parentBlock.ExcessBlobGas != nil {
-			// For now, we can't calculate blob gas used here because we don't have parent transactions
-			// This will be set properly in state_processor.go after transaction execution
-			// Set to parent's ExcessBlobGas as placeholder (will be recalculated in block validation)
+			// Placeholder: will be recalculated in block_validator.go using ActiveBlobSchedule
 			header.ExcessBlobGas = new(big.Int).Set(parentBlock.ExcessBlobGas)
 		} else if parentBlock == nil {
 			// Genesis block case

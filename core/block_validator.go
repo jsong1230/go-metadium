@@ -74,7 +74,7 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		return consensus.ErrPrunedAncestor
 	}
 
-	// EIP-4844: Validate blob gas per block limit
+	// EIP-4844 / EIP-7840/7691: Validate blob gas per block limit using ActiveBlobSchedule
 	if v.bc.Config().IsCamellia(header.Number) {
 		var totalBlobGas uint64
 		for _, tx := range block.Transactions() {
@@ -82,8 +82,14 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 				totalBlobGas += uint64(len(tx.BlobHashes())) * params.BlobTxPerBlobGas
 			}
 		}
-		if totalBlobGas > params.MaxBlobGasPerBlock {
-			return fmt.Errorf("blob gas %d exceeds per-block limit %d", totalBlobGas, params.MaxBlobGasPerBlock)
+		var maxBlobGasPerBlock uint64
+		if sched := v.bc.Config().ActiveBlobSchedule(header.Number); sched != nil {
+			maxBlobGasPerBlock = sched.Max * params.BlobTxPerBlobGas
+		} else {
+			maxBlobGasPerBlock = params.MaxBlobGasPerBlock
+		}
+		if totalBlobGas > maxBlobGasPerBlock {
+			return fmt.Errorf("blob gas %d exceeds per-block limit %d", totalBlobGas, maxBlobGasPerBlock)
 		}
 	}
 

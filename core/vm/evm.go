@@ -44,6 +44,8 @@ type (
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
+	case evm.chainRules.IsDoraji: // EIP-2537 BLS12-381 + EIP-4844
+		precompiles = PrecompiledContractsDoraji
 	case evm.chainRules.IsCamellia: // EIP-4844
 		precompiles = PrecompiledContractsCamellia
 	case evm.chainRules.IsBerlin:
