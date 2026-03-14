@@ -1,6 +1,6 @@
-# Use the locally built rocksdb-test image which already has librocksdb6.11 installed
-# (avoids pulling new images from Docker Hub)
-FROM go-metadium-rocksdb-test:latest
+# BASE_IMAGE: macOS → go-metadium-rocksdb-test:latest, Linux → gmet-poa:latest
+ARG BASE_IMAGE=go-metadium-rocksdb-test:latest
+FROM ${BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

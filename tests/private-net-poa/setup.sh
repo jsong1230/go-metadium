@@ -139,10 +139,23 @@ cat > genesis.json <<EOF
 EOF
 log "genesis.json 생성 완료 (bootNodeId=${NODE1_ID:0:16}...)"
 
+# password.txt를 각 노드 data 디렉토리에 복사 (--unlock 사용 시 필요)
+log "password.txt 각 노드에 복사 중..."
+for node in node1 node2 node3; do
+  cp passwords.txt "data/$node/password.txt"
+done
+
 # Docker 이미지 빌드
+# BASE_IMAGE: go-metadium-rocksdb-test:latest (macOS), gmet-poa:latest (Linux)
 log "Docker 이미지 빌드 중 (gmet-poa:latest)..."
 cp "$GMET_BIN" ./gmet
-docker build -t gmet-poa:latest . 2>&1 | tail -3
+if docker image inspect go-metadium-rocksdb-test:latest &>/dev/null; then
+  BASE_IMAGE="go-metadium-rocksdb-test:latest"
+else
+  BASE_IMAGE="gmet-poa:latest"
+fi
+log "  베이스 이미지: $BASE_IMAGE"
+docker build --build-arg BASE_IMAGE="$BASE_IMAGE" -t gmet-poa:latest . 2>&1 | tail -3
 rm -f ./gmet
 log "이미지 빌드 완료"
 
