@@ -72,8 +72,17 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if !opts.Config.IsCancun(head.Number, head.Time) && !opts.Config.IsCamellia(head.Number) && tx.Type() == types.BlobTxType {
 		return fmt.Errorf("%w: type %d rejected, pool not yet in Cancun or Camellia", core.ErrTxTypeNotSupported, tx.Type())
 	}
+	// Camellia brings the Shanghai rules in on a block number, so a chain that
+	// has no ShanghaiTime still runs them. ChainConfig.Rules() encodes that as
+	// "(isMerge && IsShanghai) || isCamellia", and the two checks below have to
+	// agree with it: they are the pool's view of rules the block builder and the
+	// EVM apply through Rules(). Asking IsShanghai alone makes them dead on this
+	// chain, which is how a creation transaction could be admitted with less gas
+	// than execution requires (issue #71).
+	shanghaiRules := opts.Config.IsShanghai(head.Number, head.Time) || opts.Config.IsCamellia(head.Number)
+
 	// Check whether the init code size has been exceeded
-	if opts.Config.IsShanghai(head.Number, head.Time) && tx.To() == nil && len(tx.Data()) > params.MaxInitCodeSize {
+	if shanghaiRules && tx.To() == nil && len(tx.Data()) > params.MaxInitCodeSize {
 		return fmt.Errorf("%w: code size %v, limit %v", core.ErrMaxInitCodeSizeExceeded, len(tx.Data()), params.MaxInitCodeSize)
 	}
 	// Transactions can't be negative. This may never happen using RLP decoded
@@ -102,7 +111,7 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	}
 	// Ensure the transaction has more gas than the bare minimum needed to cover
 	// the transaction metadata
-	intrGas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, opts.Config.IsIstanbul(head.Number), opts.Config.IsShanghai(head.Number, head.Time))
+	intrGas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, opts.Config.IsIstanbul(head.Number), shanghaiRules)
 	if err != nil {
 		return err
 	}
