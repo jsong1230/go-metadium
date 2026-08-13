@@ -280,6 +280,15 @@ func (st *StateTransition) buyGas() error {
 	}
 	// Metadium fee delegation: FeePayer pays gas
 	if st.msg.FeePayer != nil {
+		// Fee delegation activates at Applepie. The v1.13.14 rebase dropped this
+		// gate along with the pool's fork indicator, which left ApplepieBlock
+		// with no consumers at all: a chain with the fork unset would execute
+		// type-22 transactions that nodes running the pre-rebase code reject,
+		// splitting the two (issue #71). Mainnet and testnet activated Applepie
+		// long ago, so this only changes behaviour where the fork is unset.
+		if !st.evm.ChainConfig().IsApplepie(st.evm.Context.BlockNumber) {
+			return fmt.Errorf("%w: fee delegation type not supported", ErrTxTypeNotSupported)
+		}
 		feePayer := *st.msg.FeePayer
 		mgvalU256, overflow := uint256.FromBig(mgval)
 		if overflow {

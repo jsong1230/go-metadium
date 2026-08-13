@@ -250,7 +250,7 @@ type LegacyPool struct {
 	changesSinceReorg int // A counter for how many drops we've performed in-between reorg.
 
 	// Metadium extensions
-	feedelegation  bool                    // Whether fee delegation (Type 22) transactions are enabled
+
 	senderResolver *SenderResolver         // ecrecover helper for concurrent sender resolution
 	trsListMap     map[common.Address]bool // TRS (Transaction Restriction Set): blocked senders/recipients
 	trsSubscribe   bool                    // Whether this node subscribes to TRS updates
@@ -272,7 +272,6 @@ func New(config Config, chain BlockChain) *LegacyPool {
 		chain:           chain,
 		chainconfig:     chain.Config(),
 		signer:          types.LatestSigner(chain.Config()),
-		feedelegation:   true, // Metadium: always enable Type 22 fee delegation transactions
 		pending:         make(map[common.Address]*list),
 		queue:           make(map[common.Address]*list),
 		beats:           make(map[common.Address]time.Time),
@@ -674,7 +673,7 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 		opts.MinTip = new(big.Int)
 	}
 	// Metadium: reject fee delegation transactions if not yet activated
-	if !pool.feedelegation && tx.Type() == types.FeeDelegateDynamicFeeTxType {
+	if !pool.feeDelegationEnabled() && tx.Type() == types.FeeDelegateDynamicFeeTxType {
 		return core.ErrTxTypeNotSupported
 	}
 
@@ -1557,6 +1556,25 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	pool.addTxsLocked(reinject, false)
 }
 
+// feeDelegationEnabled reports whether fee-delegated (type 22) transactions are
+// active for the block that would be built on top of the current head.
+//
+// It is derived per call rather than cached in a field. The field was
+// hard-coded true after the v1.13.14 rebase, which made ApplepieBlock
+// non-functional: a chain with the fork unset admitted and mined type-22
+// transactions that peers running the pre-rebase code rejected at execution
+// (issue #71). Deriving it from the head cannot go stale, and there is no
+// second place -- Init and reset both -- that has to remember to refresh it.
+func (pool *LegacyPool) feeDelegationEnabled() bool {
+	head := pool.currentHead.Load()
+	if head == nil {
+		return false
+	}
+	// The fork indicator applies to the pending block, as it did before the
+	// rebase: old master recomputed it as IsApplepie(newHead.Number + 1).
+	return pool.chainconfig.IsApplepie(new(big.Int).Add(head.Number, big.NewInt(1)))
+}
+
 // trsEnforced reports whether this node enforces TRS at admission and in the
 // promote/demote sweeps: PoA consensus and an active TRS subscription. The
 // 3-hour purge ticker deliberately does NOT use this -- it ignores the
@@ -1579,7 +1597,8 @@ func (pool *LegacyPool) trsEnforced() bool {
 // address reservation state out of sync.
 func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pending bool) (drops, cascaded types.Transactions, feePayerDrops int) {
 	doTrs := pool.trsEnforced()
-	if !pool.feedelegation && !doTrs {
+	doFeeDelegation := pool.feeDelegationEnabled()
+	if !doFeeDelegation && !doTrs {
 		return nil, nil, 0
 	}
 	// Collect matches directly off the nonce map: no sort, no copy, and --
@@ -1595,7 +1614,7 @@ func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pen
 		feePayerMatch = make(map[common.Hash]struct{})
 	)
 	for _, tx := range list.txs.items {
-		if pool.feedelegation && tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() != nil {
+		if doFeeDelegation && tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() != nil {
 			feePayer := *tx.FeePayer()
 			// A cost too large for uint256 reads as unpayable, not solvent.
 			if cost, overflow := uint256.FromBig(tx.FeePayerCost()); overflow || pool.currentState.GetBalance(feePayer).Cmp(cost) < 0 {
