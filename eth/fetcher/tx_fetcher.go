@@ -98,6 +98,11 @@ var (
 	txReplyUnderpricedMeter = metrics.NewRegisteredMeter("eth/fetcher/transaction/replies/underpriced", nil)
 	txReplyOtherRejectMeter = metrics.NewRegisteredMeter("eth/fetcher/transaction/replies/otherreject", nil)
 
+	// TRS-restricted deliveries are a local policy rejection, not peer
+	// misbehaviour, so they get their own meter instead of inflating
+	// otherreject (issue #71).
+	txTRSRejectedMeter = metrics.NewRegisteredMeter("eth/fetcher/transaction/trsrejected", nil)
+
 	txFetcherWaitingPeers   = metrics.NewRegisteredGauge("eth/fetcher/transaction/waiting/peers", nil)
 	txFetcherWaitingHashes  = metrics.NewRegisteredGauge("eth/fetcher/transaction/waiting/hashes", nil)
 	txFetcherQueueingPeers  = metrics.NewRegisteredGauge("eth/fetcher/transaction/queueing/peers", nil)
@@ -177,7 +182,11 @@ type TxFetcher struct {
 
 	txSeq uint64 // Monotonic arrival-sequence counter for announcements (fetch ordering, #30125)
 
-	underpriced *lru.Cache[common.Hash, time.Time] // Transactions discarded as too cheap (don't re-fetch)
+	// Transactions the pool has already refused and that re-announcing will not
+	// change: too cheap to accept, or restricted by TRS on a subscribed node.
+	// Entries go stale after maxTxUnderpricedTimeout, which is what lets a
+	// governance list change take effect (issue #71).
+	underpriced *lru.Cache[common.Hash, time.Time]
 
 	// Stage 1: Waiting lists for newly discovered transactions that might be
 	// broadcast without needing explicit request/reply round trips.
@@ -338,6 +347,7 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 			duplicate   int64
 			underpriced int64
 			otherreject int64
+			trsrejected int64
 		)
 		batch := txs[i:end]
 
@@ -345,7 +355,12 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 			// Track the transaction hash if the price is too low for us.
 			// Avoid re-request this transaction when we receive another
 			// announcement.
-			if errors.Is(err, txpool.ErrUnderpriced) || errors.Is(err, txpool.ErrReplaceUnderpriced) {
+			// ErrIncludedTRSList is memoized for the same reason: a subscribed
+			// node can never accept the transaction, and peers that do not
+			// subscribe keep announcing it. Without this the same hash is
+			// re-fetched on every announcement.
+			if errors.Is(err, txpool.ErrUnderpriced) || errors.Is(err, txpool.ErrReplaceUnderpriced) ||
+				errors.Is(err, txpool.ErrIncludedTRSList) {
 				f.underpriced.Add(batch[j].Hash(), batch[j].Time())
 			}
 			// Track a few interesting failure types
@@ -357,6 +372,13 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 
 			case errors.Is(err, txpool.ErrUnderpriced) || errors.Is(err, txpool.ErrReplaceUnderpriced):
 				underpriced++
+
+			case errors.Is(err, txpool.ErrIncludedTRSList):
+				// This node subscribes to TRS and the sender or recipient is
+				// listed. The peer that delivered it is not necessarily
+				// subscribed, so it is behaving correctly -- do not let this
+				// count towards the stale-delivery throttle below.
+				trsrejected++
 
 			case errors.Is(err, txpool.ErrInvalidBlob):
 				// Cryptographically invalid blob sidecar (KZG proof / commitment /
@@ -377,6 +399,7 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 		knownMeter.Mark(duplicate)
 		underpricedMeter.Mark(underpriced)
 		otherRejectMeter.Mark(otherreject)
+		txTRSRejectedMeter.Mark(trsrejected)
 
 		// If 'other reject' is >25% of the deliveries in any batch, sleep a bit.
 		if otherreject > 128/4 {
