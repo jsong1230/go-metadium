@@ -81,12 +81,20 @@ var (
 	pendingRateLimitMeter = metrics.NewRegisteredMeter("txpool/pending/ratelimit", nil) // Dropped due to rate limiting
 	pendingNofundsMeter   = metrics.NewRegisteredMeter("txpool/pending/nofunds", nil)   // Dropped due to out-of-funds
 
+	// Metadium: the TRS / fee-payer sweep drops for reasons of its own, and
+	// counting them as out-of-funds skews any dashboard on that meter (#71).
+	pendingTRSRestrictedMeter = metrics.NewRegisteredMeter("txpool/pending/trsrestricted", nil) // Dropped because sender or recipient is TRS-listed
+	pendingNoFeePayerMeter    = metrics.NewRegisteredMeter("txpool/pending/nofeepayer", nil)    // Dropped because the fee payer can no longer cover the cost
+
 	// Metrics for the queued pool
 	queuedDiscardMeter   = metrics.NewRegisteredMeter("txpool/queued/discard", nil)
 	queuedReplaceMeter   = metrics.NewRegisteredMeter("txpool/queued/replace", nil)
 	queuedRateLimitMeter = metrics.NewRegisteredMeter("txpool/queued/ratelimit", nil) // Dropped due to rate limiting
 	queuedNofundsMeter   = metrics.NewRegisteredMeter("txpool/queued/nofunds", nil)   // Dropped due to out-of-funds
 	queuedEvictionMeter  = metrics.NewRegisteredMeter("txpool/queued/eviction", nil)  // Dropped due to lifetime
+
+	queuedTRSRestrictedMeter = metrics.NewRegisteredMeter("txpool/queued/trsrestricted", nil) // See pendingTRSRestrictedMeter
+	queuedNoFeePayerMeter    = metrics.NewRegisteredMeter("txpool/queued/nofeepayer", nil)    // See pendingNoFeePayerMeter
 
 	// General tx metrics
 	knownTxMeter       = metrics.NewRegisteredMeter("txpool/known", nil)
@@ -1569,22 +1577,30 @@ func (pool *LegacyPool) trsEnforced() bool {
 // the floor leaks them: still in pool.all (blocking resubmission with
 // ErrAlreadyKnown), in no list any sweep or ticker reaches, and pinning the
 // address reservation state out of sync.
-func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pending bool) (drops, cascaded types.Transactions) {
+func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pending bool) (drops, cascaded types.Transactions, feePayerDrops int) {
 	doTrs := pool.trsEnforced()
 	if !pool.feedelegation && !doTrs {
-		return nil, nil
+		return nil, nil, 0
 	}
 	// Collect matches directly off the nonce map: no sort, no copy, and --
 	// on the common no-match path -- no invalidation of the sorted cache the
 	// miner is about to use (list.Remove below invalidates it regardless once
 	// anything actually matches).
-	var matched types.Transactions
+	// feePayerMatch records why a transaction matched, so the caller can report
+	// the two reasons on separate meters instead of folding them into the
+	// out-of-funds count (issue #71). A transaction that is both unpayable and
+	// restricted is counted as unpayable: that check runs first.
+	var (
+		matched       types.Transactions
+		feePayerMatch = make(map[common.Hash]struct{})
+	)
 	for _, tx := range list.txs.items {
 		if pool.feedelegation && tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() != nil {
 			feePayer := *tx.FeePayer()
 			// A cost too large for uint256 reads as unpayable, not solvent.
 			if cost, overflow := uint256.FromBig(tx.FeePayerCost()); overflow || pool.currentState.GetBalance(feePayer).Cmp(cost) < 0 {
 				matched = append(matched, tx)
+				feePayerMatch[tx.Hash()] = struct{}{}
 				continue
 			}
 		}
@@ -1593,7 +1609,7 @@ func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pen
 		}
 	}
 	if len(matched) == 0 {
-		return nil, nil
+		return nil, nil, 0
 	}
 	matchSet := make(map[common.Hash]struct{}, len(matched))
 	for _, tx := range matched {
@@ -1608,6 +1624,9 @@ func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pen
 		}
 		log.Trace("Removed restricted or unpayable transaction", "hash", tx.Hash(), "addr", addr)
 		drops = append(drops, tx)
+		if _, ok := feePayerMatch[tx.Hash()]; ok {
+			feePayerDrops++
+		}
 		if pending {
 			pool.pendingNonces.setIfLower(addr, tx.Nonce())
 		}
@@ -1617,12 +1636,15 @@ func (pool *LegacyPool) trsAndFeePayerSweep(addr common.Address, list *list, pen
 		for _, itx := range invalids {
 			if _, ok := matchSet[itx.Hash()]; ok {
 				drops = append(drops, itx)
+				if _, ok := feePayerMatch[itx.Hash()]; ok {
+					feePayerDrops++
+				}
 			} else {
 				cascaded = append(cascaded, itx)
 			}
 		}
 	}
-	return drops, cascaded
+	return drops, cascaded, feePayerDrops
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1650,14 +1672,18 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		drops, _ := list.Filter(pool.currentState.GetBalance(addr), gasLimit)
 		// Metadium: drop TRS-restricted and drained-fee-payer transactions
 		// too (queue lists are non-strict, so there is no cascade here)
-		trsDrops, _ := pool.trsAndFeePayerSweep(addr, list, false)
+		trsDrops, _, feePayerDrops := pool.trsAndFeePayerSweep(addr, list, false)
 		drops = append(drops, trsDrops...)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
 		}
 		log.Trace("Removed unpayable queued transactions", "count", len(drops))
-		queuedNofundsMeter.Mark(int64(len(drops)))
+		// Report the sweep's drops separately: folding them into nofunds skews
+		// any dashboard built on it (issue #71).
+		queuedNofundsMeter.Mark(int64(len(drops) - len(trsDrops)))
+		queuedNoFeePayerMeter.Mark(int64(feePayerDrops))
+		queuedTRSRestrictedMeter.Mark(int64(len(trsDrops) - feePayerDrops))
 
 		// Gather all executable transactions and promote them
 		readies := list.Ready(pool.pendingNonces.get(addr))
@@ -1859,7 +1885,7 @@ func (pool *LegacyPool) demoteUnexecutables() {
 		// through the invalids path below, exactly like balance-filter
 		// invalids, so they get re-enqueued instead of leaking out of every
 		// list while still occupying pool.all.
-		trsDrops, trsCascaded := pool.trsAndFeePayerSweep(addr, list, true)
+		trsDrops, trsCascaded, feePayerDrops := pool.trsAndFeePayerSweep(addr, list, true)
 		drops = append(drops, trsDrops...)
 		invalids = append(invalids, trsCascaded...)
 		for _, tx := range drops {
@@ -1867,7 +1893,11 @@ func (pool *LegacyPool) demoteUnexecutables() {
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
 			pool.all.Remove(hash)
 		}
-		pendingNofundsMeter.Mark(int64(len(drops)))
+		// As on the queued side, the sweep's drops are reported on their own
+		// meters rather than as out-of-funds (issue #71).
+		pendingNofundsMeter.Mark(int64(len(drops) - len(trsDrops)))
+		pendingNoFeePayerMeter.Mark(int64(feePayerDrops))
+		pendingTRSRestrictedMeter.Mark(int64(len(trsDrops) - feePayerDrops))
 
 		for _, tx := range invalids {
 			hash := tx.Hash()
