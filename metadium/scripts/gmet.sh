@@ -173,15 +173,30 @@ function start ()
     else
 	DISCOVER=
     fi
+    # Decide the sync mode here rather than handing an unusable one to the
+    # binary. gmet rejects --syncmode fast|snap on Metadium networks, but start
+    # backgrounds the node through logrot, so the rejection lands in the log
+    # while gmet.sh itself still exits 0 -- the node is dead and automation
+    # thinks it started. Same reasoning for an unrecognized value: it used to
+    # fall through to the archive branch, so a typo silently provisioned a
+    # multi-TB archive node.
     case $SYNC_MODE in
+    ""|"archive")
+	# The documented default. "archive" is accepted explicitly so a node can
+	# say what it is instead of relying on the empty value.
+	SYNC_MODE="--syncmode full --gcmode archive";;
     "full")
 	SYNC_MODE="--syncmode full";;
-    "fast")
-	SYNC_MODE="--syncmode fast";;
-    "snap")
-	SYNC_MODE="--syncmode snap";;
+    "fast"|"snap")
+	echo "$0: SYNC_MODE=$SYNC_MODE is not supported -- Metadium networks are full-sync only." >&2
+	echo "    Use SYNC_MODE=full for a pruned node, or archive (or unset) for an archive node." >&2
+	echo "    Background: docs/sync-policy-and-snapshot-bootstrap.md" >&2
+	return 1;;
     *)
-	SYNC_MODE="--syncmode full --gcmode archive";;
+	echo "$0: SYNC_MODE=$SYNC_MODE is not a recognized value." >&2
+	echo "    Use full, archive, or leave it unset. Refusing to start rather than" >&2
+	echo "    silently provisioning an archive node from a typo." >&2
+	return 1;;
     esac
 
     OPTS="$COINBASE $DISCOVER $RPCOPT $BOOT_NODES $NONCE_LIMIT $TESTNET $SYNC_MODE --rpc.txfeecap 0 ${GMET_OPTS}"

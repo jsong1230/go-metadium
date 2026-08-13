@@ -261,7 +261,7 @@ stock layout). Every knob, with its default:
 | `HTTP_ADDR` / `WS_ADDR` | `127.0.0.1` | RPC / WS bind address. Set `0.0.0.0` (or a specific interface) only on nodes that must serve other machines. |
 | `TESTNET` | unset | `1` → `--metadium-testnet`. Anything else is ignored. |
 | `DISCOVER` | unset (on) | `0` → `--nodiscover`. Note **`init`-generated `.rc` files contain `DISCOVER=0`** — remove or change it for ordinary full nodes, or the node dials no one. Mainnet/testnet bootnodes are compiled into the binary, so no `BOOT_NODES` is needed. |
-| `SYNC_MODE` | unset (**archive**) | `full` → pruned full node (recommended for exchange/API nodes, ~600GB-class). **Unset — or any unrecognized value, typos included — means `--syncmode full --gcmode archive`**: a multi-TB archive node. `fast`/`snap` make the node exit at startup (Metadium networks are full-sync only) — and since `gmet.sh start` backgrounds the node, `start` itself still returns 0, so check the log. |
+| `SYNC_MODE` | unset (**archive**) | `full` → pruned full node (recommended for exchange/API nodes, ~600GB-class). `archive`, or unset, → `--syncmode full --gcmode archive`: a multi-TB archive node. Anything else — `fast`, `snap`, or a typo — makes `gmet.sh start` **refuse to start and exit non-zero**, with the reason on stderr. Metadium networks are full-sync only, and a value the script does not recognize used to become an archive node silently. |
 | `BOOT_NODES` | unset | Extra `--bootnodes` enodes (rarely needed, see above). |
 | `GMET_OPTS` | unset | Extra flags appended verbatim to the command line. |
 | `STOP_TIMEOUT` | `200` | Seconds `gmet.sh stop` waits for graceful shutdown before escalating. |
