@@ -99,7 +99,7 @@ func gateResponse(peer *Peer, msg p2p.Msg, code uint64, res any) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(id) {
+	if !peer.solicited(code, id) {
 		peer.dropUnsolicited(code, id)
 		return true, nil
 	}
@@ -119,25 +119,30 @@ func gateResponse(peer *Peer, msg p2p.Msg, code uint64, res any) (bool, error) {
 // answers immediately cannot have its response gated out by an index that has
 // not caught up. The index may therefore briefly hold an id whose send then
 // failed; that is the harmless direction, and the callers untrack it.
-func (p *Peer) trackPending(id uint64) {
+func (p *Peer) trackPending(want, id uint64) {
 	p.pendingLock.Lock()
 	defer p.pendingLock.Unlock()
 
 	if p.pendingIDs == nil {
-		p.pendingIDs = make(map[uint64]struct{})
+		p.pendingIDs = make(map[uint64]uint64)
 		p.pendingRing = make([]uint64, maxPendingIDs)
 	}
 	if _, ok := p.pendingIDs[id]; ok {
 		return
 	}
-	// Reclaim the slot this insert is about to take. The id found there may
-	// already have been untracked, in which case the delete is a no-op.
-	if victim := p.pendingRing[p.pendingPos]; victim != 0 {
-		delete(p.pendingIDs, victim)
+	// Reclaim the slot this insert is about to take, once the ring has wrapped.
+	// Counting the slots written so far is what tells an unused slot from a real
+	// entry: the syncer draws its ids at random, so a zero in the ring cannot
+	// serve as the "empty" marker. The id found in a reclaimed slot may already
+	// have been untracked, in which case the delete is a no-op.
+	if p.pendingFilled == len(p.pendingRing) {
+		delete(p.pendingIDs, p.pendingRing[p.pendingPos])
+	} else {
+		p.pendingFilled++
 	}
 	p.pendingRing[p.pendingPos] = id
 	p.pendingPos = (p.pendingPos + 1) % len(p.pendingRing)
-	p.pendingIDs[id] = struct{}{}
+	p.pendingIDs[id] = want
 }
 
 // untrackPending forgets an in-flight request id.
@@ -147,13 +152,24 @@ func (p *Peer) untrackPending(id uint64) {
 	delete(p.pendingIDs, id)
 }
 
-// solicited reports whether the given request id belongs to a request we sent
+// solicited reports whether the given response code answers a request we sent
 // to this peer and have not yet accounted for.
-func (p *Peer) solicited(id uint64) bool {
+//
+// The code is part of the check, not just the id. Keying on the id alone let a
+// peer holding any live id answer it with a different message code — so it
+// could pick the cheapest shape to expand (byte codes and trie nodes are
+// [][]byte with nothing to satisfy on the way in) rather than the shape it was
+// asked for, which is most of what the gate is here to deny.
+//
+// Unlike eth, a mismatch is not a disconnect: this protocol has no dispatcher
+// to compare types, and the syncer's existing answer to a response it cannot
+// place is to log it and move on. Treating it as unsolicited keeps that
+// outcome and skips the decode.
+func (p *Peer) solicited(code, id uint64) bool {
 	p.pendingLock.RLock()
 	defer p.pendingLock.RUnlock()
-	_, ok := p.pendingIDs[id]
-	return ok
+	want, ok := p.pendingIDs[id]
+	return ok && want == code
 }
 
 // dropUnsolicited reports the response as dangling and tells the caller to stop
@@ -163,6 +179,11 @@ func (p *Peer) solicited(id uint64) bool {
 // response used to be decoded, handed to the syncer, and discarded there with a
 // warning and a nil return. The tracker is still told, so the metrics keep
 // counting what they counted before.
+//
+// The log restores the line that moved out of the syncer with the decode, at
+// debug rather than the syncer's warning: reaching it takes nothing but a peer
+// sending a message, so a warning here is a log-flooding primitive.
 func (p *Peer) dropUnsolicited(code, id uint64) {
+	p.logger.Debug("Dropping unsolicited response", "code", code, "reqid", id)
 	requestTracker.Fulfil(p.id, p.version, code, id)
 }

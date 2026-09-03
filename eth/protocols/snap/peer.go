@@ -34,10 +34,11 @@ type Peer struct {
 
 	// Request ids sent to this peer, so that a response can be checked before
 	// it is decoded. See response_gate.go.
-	pendingLock sync.RWMutex
-	pendingIDs  map[uint64]struct{}
-	pendingRing []uint64
-	pendingPos  int
+	pendingLock   sync.RWMutex
+	pendingIDs    map[uint64]uint64 // request id -> response code it authorises
+	pendingRing   []uint64
+	pendingPos    int
+	pendingFilled int // ring slots written so far, capped at len(pendingRing)
 
 	logger log.Logger // Contextual logger with the peer id injected
 }
@@ -89,7 +90,7 @@ func (p *Peer) RequestAccountRange(id uint64, root common.Hash, origin, limit co
 
 	// Register before sending, so the response cannot outrun the index. See
 	// response_gate.go; handleMessage retires the id when the answer arrives.
-	p.trackPending(id)
+	p.trackPending(AccountRangeMsg, id)
 	err := p2p.Send(p.rw, GetAccountRangeMsg, &GetAccountRangePacket{
 		ID:     id,
 		Root:   root,
@@ -114,7 +115,7 @@ func (p *Peer) RequestStorageRanges(id uint64, root common.Hash, accounts []comm
 	}
 	requestTracker.Track(p.id, p.version, GetStorageRangesMsg, StorageRangesMsg, id)
 
-	p.trackPending(id)
+	p.trackPending(StorageRangesMsg, id)
 	err := p2p.Send(p.rw, GetStorageRangesMsg, &GetStorageRangesPacket{
 		ID:       id,
 		Root:     root,
@@ -135,7 +136,7 @@ func (p *Peer) RequestByteCodes(id uint64, hashes []common.Hash, bytes uint64) e
 
 	requestTracker.Track(p.id, p.version, GetByteCodesMsg, ByteCodesMsg, id)
 
-	p.trackPending(id)
+	p.trackPending(ByteCodesMsg, id)
 	err := p2p.Send(p.rw, GetByteCodesMsg, &GetByteCodesPacket{
 		ID:     id,
 		Hashes: hashes,
@@ -154,7 +155,7 @@ func (p *Peer) RequestTrieNodes(id uint64, root common.Hash, paths []TrieNodePat
 
 	requestTracker.Track(p.id, p.version, GetTrieNodesMsg, TrieNodesMsg, id)
 
-	p.trackPending(id)
+	p.trackPending(TrieNodesMsg, id)
 	err := p2p.Send(p.rw, GetTrieNodesMsg, &GetTrieNodesPacket{
 		ID:    id,
 		Root:  root,

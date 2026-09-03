@@ -68,9 +68,8 @@ func handleBlobSidecars69(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(env); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(env.RequestId) {
-		peer.dropUnsolicited(BlobSidecarsMsg, env.RequestId)
-		return nil
+	if stop, err := peer.gateResponse(BlobSidecarsMsg, env.RequestId); stop || err != nil {
+		return err
 	}
 	peer.untrackPending(env.RequestId)
 

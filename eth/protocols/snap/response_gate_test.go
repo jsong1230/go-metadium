@@ -118,7 +118,7 @@ func TestGateDecodesSolicited(t *testing.T) {
 	for _, tc := range responseCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			peer := newGatePeer()
-			peer.trackPending(42)
+			peer.trackPending(tc.code, 42)
 
 			msg, done := gatedMessage(t, tc.code, 42, tc.body)
 			defer done()
@@ -130,7 +130,7 @@ func TestGateDecodesSolicited(t *testing.T) {
 			if err == nil {
 				t.Fatal("the undecodable payload was accepted")
 			}
-			if peer.solicited(42) {
+			if peer.solicited(tc.code, 42) {
 				t.Error("the id was not retired once its answer arrived")
 			}
 		})
@@ -169,15 +169,15 @@ func TestGateRejectsMalformedEnvelope(t *testing.T) {
 func TestPendingIndexBounded(t *testing.T) {
 	peer := newGatePeer()
 	for id := uint64(1); id <= maxPendingIDs+10; id++ {
-		peer.trackPending(id)
+		peer.trackPending(AccountRangeMsg, id)
 	}
 	if got := len(peer.pendingIDs); got != maxPendingIDs {
 		t.Errorf("the index holds %d ids, want %d", got, maxPendingIDs)
 	}
-	if peer.solicited(1) {
+	if peer.solicited(AccountRangeMsg, 1) {
 		t.Error("the oldest id survived eviction")
 	}
-	if !peer.solicited(maxPendingIDs + 10) {
+	if !peer.solicited(AccountRangeMsg, maxPendingIDs+10) {
 		t.Error("the newest id was not retained")
 	}
 }
@@ -186,14 +186,14 @@ func TestPendingIndexBounded(t *testing.T) {
 // consume a second ring slot, which would evict an unrelated live id.
 func TestTrackPendingIdempotent(t *testing.T) {
 	peer := newGatePeer()
-	peer.trackPending(7)
+	peer.trackPending(AccountRangeMsg, 7)
 	pos := peer.pendingPos
-	peer.trackPending(7)
+	peer.trackPending(AccountRangeMsg, 7)
 
 	if peer.pendingPos != pos {
 		t.Error("re-registering a live id consumed a ring slot")
 	}
-	if !peer.solicited(7) {
+	if !peer.solicited(AccountRangeMsg, 7) {
 		t.Error("the id was lost")
 	}
 }
@@ -210,18 +210,19 @@ func TestTrackPendingIdempotent(t *testing.T) {
 func TestRequestRegistersPendingID(t *testing.T) {
 	for _, tc := range []struct {
 		name string
+		code uint64 // the response code the request must register under
 		send func(*Peer, uint64) error
 	}{
-		{"AccountRange", func(p *Peer, id uint64) error {
+		{"AccountRange", AccountRangeMsg, func(p *Peer, id uint64) error {
 			return p.RequestAccountRange(id, common.Hash{}, common.Hash{}, common.Hash{}, 1024)
 		}},
-		{"StorageRanges", func(p *Peer, id uint64) error {
+		{"StorageRanges", StorageRangesMsg, func(p *Peer, id uint64) error {
 			return p.RequestStorageRanges(id, common.Hash{}, []common.Hash{{}}, nil, nil, 1024)
 		}},
-		{"ByteCodes", func(p *Peer, id uint64) error {
+		{"ByteCodes", ByteCodesMsg, func(p *Peer, id uint64) error {
 			return p.RequestByteCodes(id, []common.Hash{{}}, 1024)
 		}},
-		{"TrieNodes", func(p *Peer, id uint64) error {
+		{"TrieNodes", TrieNodesMsg, func(p *Peer, id uint64) error {
 			return p.RequestTrieNodes(id, common.Hash{}, nil, 1024)
 		}},
 	} {
@@ -247,7 +248,7 @@ func TestRequestRegistersPendingID(t *testing.T) {
 			if err := <-read; err != nil {
 				t.Fatalf("reading the request failed: %v", err)
 			}
-			if !peer.solicited(99) {
+			if !peer.solicited(tc.code, 99) {
 				t.Error("the request id was not registered, so its response would be gated out")
 			}
 		})
@@ -262,8 +263,35 @@ func TestRequestRegistersPendingID(t *testing.T) {
 		if err := peer.RequestByteCodes(99, []common.Hash{{}}, 1024); err == nil {
 			t.Fatal("sending on a closed pipe succeeded")
 		}
-		if peer.solicited(99) {
+		if peer.solicited(ByteCodesMsg, 99) {
 			t.Error("a request that never reached the wire left its id in the index")
 		}
 	})
+}
+
+// TestGateRejectsCrossCodeResponse is the gap the (code, id) keying closes.
+// Keying on the id alone, a peer holding one live id could answer it with any
+// response code -- so it could send the shape that expands the most rather than
+// the one it was asked for, which is most of what the gate is for. Byte codes
+// are that shape here: [][]byte with no ordering to satisfy on the way in.
+func TestGateRejectsCrossCodeResponse(t *testing.T) {
+	peer := newGatePeer()
+	peer.trackPending(AccountRangeMsg, 42) // asked for accounts
+
+	// ... answered with byte codes, on the same id.
+	body := []any{[][]string{{"not a byte string"}}}
+	msg, done := gatedMessage(t, ByteCodesMsg, 42, body)
+	defer done()
+
+	gated, err := gateResponse(peer, msg, ByteCodesMsg, new(ByteCodesPacket))
+	if err != nil {
+		t.Fatalf("the payload was decoded despite the code mismatch: %v", err)
+	}
+	if !gated {
+		t.Fatal("a response answering a live id with the wrong code was not gated")
+	}
+	// The mismatch must not spend the id either: the real answer is still owed.
+	if !peer.solicited(AccountRangeMsg, 42) {
+		t.Error("a wrong-code response retired the id its real answer needs")
+	}
 }

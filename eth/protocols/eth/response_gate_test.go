@@ -132,7 +132,7 @@ func TestResponseGateDecodesSolicited(t *testing.T) {
 		{"blob sidecars", BlobSidecarsMsg, handleBlobSidecars69},
 	} {
 		const id = 0xbeef
-		peer.Peer.trackPending(id)
+		peer.Peer.trackPending(tt.code, id)
 
 		err := deliver(t, peer.Peer, tt.code, id, payload, tt.handler, processing)
 		if !errors.Is(err, errDecode) {
@@ -153,7 +153,7 @@ func TestPendingIndexBounded(t *testing.T) {
 	defer peer.close()
 
 	for i := uint64(1); i <= maxPendingIDs*3; i++ {
-		peer.Peer.trackPending(i)
+		peer.Peer.trackPending(BlockHeadersMsg, i)
 	}
 	peer.Peer.pendingLock.RLock()
 	size := len(peer.Peer.pendingIDs)
@@ -165,12 +165,12 @@ func TestPendingIndexBounded(t *testing.T) {
 	// The most recent ids must have survived the eviction, or the gate would
 	// drop responses to requests that are actually in flight.
 	for i := uint64(maxPendingIDs*3 - 10); i <= maxPendingIDs*3; i++ {
-		if !peer.Peer.solicited(i) {
-			t.Fatalf("recent request id %d was evicted", i)
+		if stop, err := peer.Peer.gateResponse(BlockHeadersMsg, i); stop || err != nil {
+			t.Fatalf("recent request id %d was evicted (stop=%v err=%v)", i, stop, err)
 		}
 	}
 	// And the oldest must be gone, which is what keeps the bound.
-	if peer.Peer.solicited(1) {
+	if stop, _ := peer.Peer.gateResponse(BlockHeadersMsg, 1); !stop {
 		t.Fatalf("oldest request id was not evicted")
 	}
 }
@@ -186,7 +186,7 @@ func TestTrackPendingIdempotent(t *testing.T) {
 	defer peer.close()
 
 	for i := 0; i < maxPendingIDs*2; i++ {
-		peer.Peer.trackPending(7)
+		peer.Peer.trackPending(BlockHeadersMsg, 7)
 	}
 	peer.Peer.pendingLock.RLock()
 	size := len(peer.Peer.pendingIDs)
@@ -195,7 +195,35 @@ func TestTrackPendingIdempotent(t *testing.T) {
 	if size != 1 {
 		t.Fatalf("re-tracking one id filled the index: size %d", size)
 	}
-	if !peer.Peer.solicited(7) {
-		t.Fatalf("re-tracked id was evicted by itself")
+	if stop, err := peer.Peer.gateResponse(BlockHeadersMsg, 7); stop || err != nil {
+		t.Fatalf("re-tracked id was evicted by itself (stop=%v err=%v)", stop, err)
+	}
+}
+
+// TestGateRejectsCrossCodeResponse is the gap the (code, id) keying closes: a
+// peer holding one live id could answer it with a different response code and
+// still reach the decoder. The dispatcher caught it afterwards and dropped the
+// peer, but only after the decode the gate exists to prevent.
+//
+// The outcome is unchanged -- the peer is still dropped, by the same error --
+// so what this pins is that it now happens before the payload is looked at.
+func TestGateRejectsCrossCodeResponse(t *testing.T) {
+	backend := newTestBackend(1)
+	defer backend.close()
+
+	peer, _ := newTestPeer("cross-code", ETH69, backend)
+	defer peer.close()
+
+	const id = 0xbeef
+	peer.Peer.trackPending(BlockHeadersMsg, id) // asked for headers
+
+	// ... answered with receipts, on the same id.
+	stop, err := peer.Peer.gateResponse(ReceiptsMsg, id)
+	if !errors.Is(err, errMismatchingResponseType) {
+		t.Fatalf("want errMismatchingResponseType, got stop=%v err=%v", stop, err)
+	}
+	// The id is still owed its real answer: a mismatch must not spend it.
+	if stop, err := peer.Peer.gateResponse(BlockHeadersMsg, id); stop || err != nil {
+		t.Errorf("a wrong-code response retired the id (stop=%v err=%v)", stop, err)
 	}
 }

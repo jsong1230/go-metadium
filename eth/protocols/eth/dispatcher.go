@@ -200,7 +200,7 @@ func (p *Peer) dispatcher() {
 			// Make the id visible to the response gate before the request goes
 			// out, so a peer that answers instantly cannot be gated out by an
 			// index that has not caught up. See response_gate.go.
-			p.trackPending(req.id)
+			p.trackPending(req.want, req.id)
 
 			err := p2p.Send(p.rw, req.code, req.data)
 			reqOp.fail <- err

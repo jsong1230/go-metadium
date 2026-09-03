@@ -320,9 +320,8 @@ func handleBlockHeaders(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(env); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(env.RequestId) {
-		peer.dropUnsolicited(BlockHeadersMsg, env.RequestId)
-		return nil
+	if stop, err := peer.gateResponse(BlockHeadersMsg, env.RequestId); stop || err != nil {
+		return err
 	}
 	res := &BlockHeadersPacket{RequestId: env.RequestId}
 	if err := rlp.DecodeBytes(env.Payload, &res.BlockHeadersRequest); err != nil {
@@ -349,9 +348,8 @@ func handleBlockBodies(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(env); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(env.RequestId) {
-		peer.dropUnsolicited(BlockBodiesMsg, env.RequestId)
-		return nil
+	if stop, err := peer.gateResponse(BlockBodiesMsg, env.RequestId); stop || err != nil {
+		return err
 	}
 	res := &BlockBodiesPacket{RequestId: env.RequestId}
 	if err := rlp.DecodeBytes(env.Payload, &res.BlockBodiesResponse); err != nil {
@@ -387,9 +385,8 @@ func handleReceipts(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(env); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(env.RequestId) {
-		peer.dropUnsolicited(ReceiptsMsg, env.RequestId)
-		return nil
+	if stop, err := peer.gateResponse(ReceiptsMsg, env.RequestId); stop || err != nil {
+		return err
 	}
 	res := &ReceiptsPacket{RequestId: env.RequestId}
 	if err := rlp.DecodeBytes(env.Payload, &res.ReceiptsResponse); err != nil {
@@ -501,9 +498,8 @@ func handlePooledTransactions(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(env); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	if !peer.solicited(env.RequestId) {
-		peer.dropUnsolicited(PooledTransactionsMsg, env.RequestId)
-		return nil
+	if stop, err := peer.gateResponse(PooledTransactionsMsg, env.RequestId); stop || err != nil {
+		return err
 	}
 	peer.untrackPending(env.RequestId)
 

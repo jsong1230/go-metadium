@@ -94,10 +94,11 @@ type Peer struct {
 	// payload. See response_gate.go. Written by the dispatcher goroutine and by
 	// the meta/69 blob-sidecar requester, read by the message-handling
 	// goroutine, hence its own lock rather than the field lock below.
-	pendingIDs  map[uint64]struct{}
-	pendingRing [maxPendingIDs]uint64 // insertion order, to bound the index
-	pendingPos  int
-	pendingLock sync.RWMutex
+	pendingIDs    map[uint64]uint64     // request id -> response code it authorises
+	pendingRing   [maxPendingIDs]uint64 // insertion order, to bound the index
+	pendingPos    int
+	pendingFilled int // ring slots written so far, capped at len(pendingRing)
+	pendingLock   sync.RWMutex
 
 	term chan struct{} // Termination channel to stop the broadcasters
 	lock sync.RWMutex  // Mutex protecting the internal fields
@@ -127,7 +128,7 @@ func NewPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter, txpool TxPool) *Pe
 		reqDispatch:     make(chan *request),
 		reqCancel:       make(chan *cancel),
 		resDispatch:     make(chan *response),
-		pendingIDs:      make(map[uint64]struct{}),
+		pendingIDs:      make(map[uint64]uint64),
 		txpool:          txpool,
 		term:            make(chan struct{}),
 	}
@@ -473,7 +474,7 @@ func (p *Peer) RequestTxs(hashes []common.Hash) error {
 
 	// This retrieval bypasses the dispatcher, so register the id for the response
 	// gate here; handlePooledTransactions retires it. See response_gate.go.
-	p.trackPending(id)
+	p.trackPending(PooledTransactionsMsg, id)
 
 	return p2p.Send(p.rw, GetPooledTransactionsMsg, &GetPooledTransactionsPacket{
 		RequestId:                    id,
