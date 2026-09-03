@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	metaminer "github.com/ethereum/go-ethereum/metadium/miner"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -54,9 +55,12 @@ func TestTRSRejectsRestrictedSender(t *testing.T) {
 
 	listed := map[common.Address]bool{from: true}
 
-	// Not subscribed: the transaction is accepted even if listed.
+	// Not subscribed: the transaction is accepted even if listed. Sync, so the
+	// expulsion assertion below runs against a promoted transaction rather than
+	// whatever the reorg loop happens to have done.
 	setTRS(pool, listed, false)
-	if err := pool.addRemote(transaction(0, 100000, key)); err != nil {
+	accepted := transaction(0, 100000, key)
+	if err := pool.addRemoteSync(accepted); err != nil {
 		t.Fatalf("unsubscribed node rejected listed tx: %v", err)
 	}
 
@@ -64,6 +68,21 @@ func TestTRSRejectsRestrictedSender(t *testing.T) {
 	setTRS(pool, listed, true)
 	if err := pool.addRemote(transaction(1, 100000, key)); !errors.Is(err, txpool.ErrIncludedTRSList) {
 		t.Fatalf("want ErrIncludedTRSList, got %v", err)
+	}
+
+	// Subscribing does not only close admission: the transaction accepted while
+	// unsubscribed is now restricted too, and the demote sweep must expel it.
+	// Leaving it in place would let a node keep mining a listed transaction it
+	// happened to admit before the subscription arrived.
+	pool.mu.Lock()
+	pool.demoteUnexecutables()
+	pool.mu.Unlock()
+
+	if pool.Has(accepted.Hash()) {
+		t.Errorf("transaction admitted before subscribing survived the sweep")
+	}
+	if pending, queued := pool.Stats(); pending != 0 || queued != 0 {
+		t.Errorf("want pool empty after sweep, got pending=%d queued=%d", pending, queued)
 	}
 }
 
@@ -113,11 +132,10 @@ func TestTRSSweepCascade(t *testing.T) {
 		toTransaction(1, clean, key),
 		toTransaction(2, clean, key),
 	}
-	// Sync, because the assertion below reads the pending set. addRemote returns
-	// as soon as the transaction is queued and leaves promotion to the reorg
-	// loop, so with it this reads whatever the loop happens to have done.
-	for i, tx := range txs {
-		if err := pool.addRemoteSync(tx); err != nil {
+	// Sync, because the assertion below reads the pending set -- see
+	// TestTRSSweepPurgesPending for why that matters.
+	for i, err := range pool.addRemotesSync(txs) {
+		if err != nil {
 			t.Fatalf("failed to add tx %d: %v", i, err)
 		}
 	}
@@ -149,6 +167,108 @@ func TestTRSSweepCascade(t *testing.T) {
 	// ErrAlreadyKnown / nonce-gap here forever.
 	if err := pool.addRemote(toTransaction(0, clean, key)); err != nil {
 		t.Fatalf("resubmission at the freed nonce failed: %v", err)
+	}
+}
+
+// TestTRSAdoptionOnReorg pins the runReorg adoption path, which is where the
+// pool's TRS view actually comes from in a running node -- the sweep tests
+// above install it by hand. Three properties matter and none of them is
+// visible from admission alone:
+//
+//   - the list is fetched for a specific head and only adopted if reset ended
+//     up on that head, since reset bails early on e.g. a StateAt failure and
+//     the pool must keep enforcing against the head it really has;
+//   - a failed governance read keeps the previous list (fail-closed) instead of
+//     failing open with no enforcement;
+//   - ErrNotInitialized is the normal pre-governance state, not a failure.
+func TestTRSAdoptionOnReorg(t *testing.T) {
+	asPoA(t)
+
+	pool, key := setupPool()
+	defer pool.Close()
+
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	testAddBalance(pool, from, big.NewInt(1000000))
+
+	var (
+		listed  = map[common.Address]bool{{0xbb}: true}
+		fetched *big.Int
+		result  = func(*big.Int) (map[common.Address]bool, bool, error) {
+			return listed, true, nil
+		}
+	)
+	old := metaminer.GetTRSListMapFunc
+	metaminer.GetTRSListMapFunc = func(height *big.Int) (map[common.Address]bool, bool, error) {
+		fetched = height
+		return result(height)
+	}
+	t.Cleanup(func() { metaminer.GetTRSListMapFunc = old })
+
+	// A reorg adopts the fetched list for the head it settled on.
+	<-pool.requestReset(nil, nil)
+
+	head := pool.chain.CurrentBlock()
+	pool.mu.Lock()
+	gotList, gotSub := pool.trsListMap, pool.trsSubscribe
+	pool.mu.Unlock()
+
+	if fetched == nil || head == nil || fetched.Cmp(head.Number) != 0 {
+		t.Fatalf("list fetched for height %v, want the new head %v", fetched, head.Number)
+	}
+	if !gotSub || !gotList[common.Address{0xbb}] {
+		t.Fatalf("reorg did not adopt the fetched list: subscribe=%v list=%v", gotSub, gotList)
+	}
+
+	// A failed read keeps the previous list rather than clearing enforcement.
+	result = func(*big.Int) (map[common.Address]bool, bool, error) {
+		return nil, false, errors.New("governance unreachable")
+	}
+	<-pool.requestReset(nil, nil)
+
+	pool.mu.Lock()
+	gotList, gotSub = pool.trsListMap, pool.trsSubscribe
+	pool.mu.Unlock()
+
+	if !gotSub || !gotList[common.Address{0xbb}] {
+		t.Fatalf("failed read cleared enforcement: subscribe=%v list=%v", gotSub, gotList)
+	}
+
+	// ErrNotInitialized is the pre-governance state: adopt the empty result
+	// rather than treating it as a failure to be logged and ignored.
+	result = func(*big.Int) (map[common.Address]bool, bool, error) {
+		return nil, false, metaminer.ErrNotInitialized
+	}
+	<-pool.requestReset(nil, nil)
+
+	pool.mu.Lock()
+	gotList, gotSub = pool.trsListMap, pool.trsSubscribe
+	pool.mu.Unlock()
+
+	if !gotSub || !gotList[common.Address{0xbb}] {
+		t.Fatalf("ErrNotInitialized disturbed the standing list: subscribe=%v list=%v", gotSub, gotList)
+	}
+
+	// The head-hash guard: the list is fetched outside pool.mu, so the head can
+	// move before reset runs. A list fetched for the old head must not be
+	// adopted against the new one -- the pool would then enforce a restriction
+	// set belonging to a head it is not on. Moving the test chain's head from
+	// inside the fetch reproduces exactly that interleaving.
+	chain := pool.chain.(*testBlockChain)
+	result = func(*big.Int) (map[common.Address]bool, bool, error) {
+		chain.gasLimit.Store(chain.gasLimit.Load() + 1) // a different head hash
+		return map[common.Address]bool{{0xcc}: true}, true, nil
+	}
+	<-pool.requestReset(nil, nil)
+
+	pool.mu.Lock()
+	gotList = pool.trsListMap
+	pool.mu.Unlock()
+
+	if gotList[common.Address{0xcc}] {
+		t.Errorf("adopted a list fetched for a head the reset did not settle on")
+	}
+	if !gotList[common.Address{0xbb}] {
+		t.Errorf("stale fetch dropped the standing list: %v", gotList)
 	}
 }
 
