@@ -68,15 +68,49 @@ and no seal failure. The only ERROR lines were the harness's pre-existing
 
 ## Interactions worth knowing
 
-**The drift correction still owns the empty-block cadence.** `timeIt` compares
-recent block density against the nominal interval and either shortens the next
-slot (behind: `(interval-1)s + BlockMinBuildTime`) or stretches it (ahead:
-`interval + BlockMinBuildTime + 500ms`). That is why the idle cadence above
-reads 4.3s or 5.8s rather than a flat 5s. Early sealing feeds this loop -- a
-busy chain produces blocks faster than the interval and the correction then
-slows the *empty* slots down. It does not blunt the latency win, because
-`idleseal` fires relative to the last transaction, not to the slot deadline;
-the slot deadline only ever acts as the upper bound.
+**The drift correction still owns the empty-block cadence, and only that.**
+`timeIt` compares recent block density against the nominal interval and either
+shortens the next slot (behind: `(interval-1)s + BlockMinBuildTime`) or
+stretches it (ahead: `interval + BlockMinBuildTime + 500ms`). At a 5s interval
+that is 4300ms and 5800ms -- which is why the idle cadence above reads 4.3s or
+5.8s rather than a flat 5s. Both branches are **fixed formulas, not
+proportional to the drift**, so however far ahead the chain runs the empty-slot
+deadline never grows past `interval + 800ms`. There is no runaway.
+
+Early sealing does feed that loop: a busy chain produces blocks faster than the
+interval, so the correction settles on "ahead" and slows the *empty* slots to
+the 5.8s ceiling. It does not touch confirmation latency, because `idleseal`
+fires relative to the last transaction while the correction only moves the slot
+deadline, which is an upper bound. Measured: 45s of load at 10 tx/s produced 65
+blocks (692ms/block, ~7x the nominal rate) and left the chain firmly ahead;
+single-transaction confirmation immediately afterwards was **avg 123ms (min 116,
+max 128)**, the same as on an undrifted chain, while the idle gaps stretched to
+5821-5823ms. The sealer's own log shows both halves at once:
+
+```
+DEBUG time-it   ahead=1,788,860,385 duration=5800
+DEBUG Sealing early, transaction pool went quiet number=626 txs=1 idle-ms=100 slot-left=1.693s
+```
+
+The correction had set a 5800ms deadline; the idle seal closed the block with
+1.693s of it still unused.
+
+**`BlockMinBuildTime` is not a floor for idle sealing.** It only shapes the
+deadline `timeIt` computes; nothing enforces it against an early seal. An
+`idleseal` below it (the 100ms above, against a 300ms `BlockMinBuildTime`) is
+honored as written.
+
+**`throttleMining` is dead code -- do not re-wire it without reading this.**
+`miner/worker.go` still carries `throttleMining`/`ancestorTimes` from
+`7ed4d8b27` ("added block generation throttling"), a hard rate cap: 1000 blocks
+must span 2000s, 500 blocks 500s, 100 blocks 50s, 50 blocks 10s, and a
+violation sleeps for the shortfall **in seconds**. Its call site disappeared in
+the `f113fe913` go-wemix merge (2023-07) and is absent from `master` and the
+archived Doraji branch, so it has no effect today. If it ever comes back, a
+chain sealing on idle would trip it constantly -- the 692ms/block measured above
+is 100 blocks in ~69s, already inside the 50s/100-block cap's neighbourhood, and
+a faster chain would be throttled by whole seconds. Either leave it inert or
+gate it on these flags being off.
 
 **With `emptyinterval` on, a transaction block may be trailed by one empty
 block.** The withhold decision is taken in `commitWork` from the pool's own
