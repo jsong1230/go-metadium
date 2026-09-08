@@ -61,6 +61,13 @@ from `eth_sendTransaction` returning to the receipt being available.
 | `idleseal=100` | empty block every 4.3s | **avg 117ms** (min 117, max 118) | 1 block, **174ms** |
 | `idleseal=100` + `emptyinterval=30` | **1 block / ~30s** | **avg 123ms** (min 116, max 127) | 1 block, 179ms |
 
+A 10-minute soak with `idleseal=100` and one transaction every 3 seconds, to see
+whether latency ever spikes: 193 transactions, **min 107ms, p50 118ms, p90 128ms,
+p99 130ms, max 130ms**, nothing above 500ms. The gap between p50 and the maximum
+is 12ms — there is no tail. That run also produced 193 blocks for 193
+transactions: with traffic this steady every slot closes on a transaction, so no
+empty blocks appear at all even with `emptyinterval` off.
+
 Across the runs: three nodes stayed in lockstep at the same head, 40 sampled
 blocks had no parent-hash break, and the logs carried no `BAD BLOCK`, no panic
 and no seal failure. The only ERROR lines were the harness's pre-existing
@@ -94,6 +101,27 @@ DEBUG Sealing early, transaction pool went quiet number=626 txs=1 idle-ms=100 sl
 
 The correction had set a 5800ms deadline; the idle seal closed the block with
 1.693s of it still unused.
+
+**How much late does an idle chain actually run after a fast burst?** The
+question an operator will ask, measured directly: 100 blocks were produced at
+122ms each, then transactions stopped and every subsequent gap was recorded.
+
+```
+#1099..#1119   5.8s each  (+829, +806, +813, ... , +829ms vs the nominal 5s)   21 blocks
+#1120..#1132   4.3s each  (-669, -709, -661, ... , -682ms)                     13 blocks
+#1133..        5.8s and 4.3s mixed
+n=43  min=4291  avg=5330  max=5846 ms
+```
+
+So the whole penalty is **+846ms at worst, for 21 blocks -- about 17 seconds of
+accumulated delay** -- and then the correction flips to `behind` and gives it
+back at 4.3s per block. The flip lands where the judgement window predicts:
+`BlockTimeAdjBlocks / interval` = 24 blocks, and it took 21. Nothing accumulates
+beyond that, whatever the burst was: both branches are fixed values.
+
+Only the empty heartbeat is affected. A block carrying a transaction is sealed
+by the idle rule long before either deadline -- the 10-minute soak below saw a
+maximum of 130ms.
 
 **`BlockMinBuildTime` is not a floor for idle sealing.** It only shapes the
 deadline `timeIt` computes; nothing enforces it against an early seal. An
