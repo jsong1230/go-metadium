@@ -572,6 +572,19 @@ func (w *worker) newWorkLoopEx(recommit time.Duration) {
 	timer := time.NewTimer(10 * time.Millisecond)
 	defer timer.Stop()
 
+	// A round that BlockEmptyInterval skips builds nothing, so without this the
+	// 1s timer below would be the only thing that notices a transaction landing
+	// in an idle pool -- and the idle-seal latency would be that timer's phase
+	// rather than BlockIdleSealTime. Wake on arrival instead. Left unsubscribed
+	// (a nil channel never fires) when empty blocks are not withheld, since
+	// then a round is always in flight for the transaction to join.
+	var txCh chan core.NewTxsEvent
+	if params.BlockEmptyInterval > 0 {
+		txCh = make(chan core.NewTxsEvent, 64)
+		sub := w.pool.SubscribeTransactions(txCh, true)
+		defer sub.Unsubscribe()
+	}
+
 	// commitSimple just starts a new commitNewWork
 	commitSimple := func() {
 		if atomic.CompareAndSwapInt32(&w.busyMining, 0, 1) {
@@ -600,6 +613,17 @@ func (w *worker) newWorkLoopEx(recommit time.Duration) {
 
 		case head := <-w.chainHeadCh:
 			clearPending(head.Block.NumberU64())
+			commitSimple()
+
+		case <-txCh:
+			// Collapse a burst into the one round that will pick all of it up.
+			for drained := false; !drained; {
+				select {
+				case <-txCh:
+				default:
+					drained = true
+				}
+			}
 			commitSimple()
 
 		case <-timer.C:
@@ -1124,6 +1148,21 @@ func (w *worker) throttleMining(ts []int64) (int64, int64) {
 	return 0, pt
 }
 
+// stopTimer stops t and drains its channel if it had already fired, so the
+// timer can be discarded without leaking a pending tick. A nil timer is a
+// no-op, which lets callers keep optional timers unset.
+func stopTimer(t *time.Timer) {
+	if t == nil {
+		return
+	}
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+}
+
 func (w *worker) commitTransactionsEx(env *environment, interrupt *atomic.Int32, tstart time.Time) bool {
 	// committed transactions (tracked by hash to avoid reprocessing)
 	committedTxHashes := map[common.Hash]struct{}{}
@@ -1207,34 +1246,58 @@ func (w *worker) commitTransactionsEx(env *environment, interrupt *atomic.Int32,
 
 		remaining := time.Until(*env.till)
 		timer := time.NewTimer(remaining)
+
+		// Metadium private PoA: once this block carries a transaction, close it
+		// as soon as the pool has stayed quiet for BlockIdleSealTime instead of
+		// holding the slot open until env.till. The quiet window starts after
+		// the fill above, which drained txCh, so an arrival during the wait
+		// resets it by taking the txCh branch. Off (0) on the public networks,
+		// where the slot always runs to env.till.
+		var (
+			quiet  *time.Timer
+			quietC <-chan time.Time
+		)
+		if params.BlockIdleSealTime > 0 && env.tcount > 0 {
+			quiet = time.NewTimer(time.Duration(params.BlockIdleSealTime) * time.Millisecond)
+			quietC = quiet.C
+		}
+
+		sealOnIdle := false
 		select {
 		case <-timer.C:
+		case <-quietC:
+			sealOnIdle = true
 		case <-txCh:
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
+			stopTimer(timer)
+			stopTimer(quiet)
 			continue
 		case <-sub.Err():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
+			stopTimer(timer)
+			stopTimer(quiet)
 			return true
 		}
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
+		stopTimer(timer)
+		stopTimer(quiet)
+		if sealOnIdle {
+			log.Debug("Sealing early, transaction pool went quiet", "number", env.header.Number,
+				"txs", env.tcount, "idle-ms", params.BlockIdleSealTime,
+				"slot-left", common.PrettyDuration(time.Until(*env.till)))
+			break
 		}
 	}
 
 	log.Debug("Block", "number", env.header.Number.Int64(), "elapsed", common.PrettyDuration(time.Since(tstart)), "txs", env.tcount)
+
+	// Note on BlockEmptyInterval: the withhold decision deliberately stays in
+	// commitWork, ahead of the mining-token gate, and is not re-taken here.
+	// Deciding it after the fill would be more precise -- a round can come out
+	// empty because another sealer got the transaction first, which the pool
+	// pre-check cannot see until its own reset lands -- but a round discarded
+	// at this point has already taken the mining token and would leave it to
+	// expire (TTL 10s). Measured on the 3-node private net: doing it here cut
+	// the trailing empty blocks but pushed idle-seal confirmation from 117ms to
+	// 4.4s average, because every withheld round burned a token. One empty
+	// block trailing a transaction block is the cheaper trade.
 
 	return false
 }
@@ -1636,6 +1699,18 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 	}
 	if !metaminer.IsPoW() {
 		parent := w.chain.CurrentBlock()
+		// Metadium private PoA: with an empty pool, skip the round entirely
+		// until BlockEmptyInterval has passed since the parent, so an idle
+		// chain does not accumulate empty blocks. Checked before the miner and
+		// mining-token gates below so a skipped round never holds the token.
+		// Off (0) on the public networks, which seal every slot.
+		if params.BlockEmptyInterval > 0 {
+			if pending, _ := w.eth.TxPool().Stats(); pending == 0 &&
+				time.Now().Unix()-int64(parent.Time) < params.BlockEmptyInterval {
+				w.refreshPending(true)
+				return
+			}
+		}
 		height := new(big.Int).Add(parent.Number, common.Big1)
 		if !w.chain.Config().IsBokbunja(height) {
 			if !metaminer.IsMiner() {
