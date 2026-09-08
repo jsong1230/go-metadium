@@ -21,7 +21,11 @@ Both default to off, which is exactly the behavior of a build without them.
 
 1. **Block interval is on-chain, not a flag.** The sealer reads
    `EnvStorage.getBlockCreationTime` (milliseconds) through
-   `getBlockBuildParameters`. Set it when the governance contracts are deployed
+   `getBlockBuildParameters`. Queried on mainnet today it is `2000`, and testnet
+   paces identically (block spacing measured at exactly 2.000s over 1000-block
+   windows) -- **the 5s used throughout this document is the private test
+   chain's own setting**, not a public-network value. Set it when the
+   governance contracts are deployed
    -- in `tests/private-net-poa` that is `BLOCK_CREATION_TIME=5000 ./deploy.sh`
    -- or change it later by ballot. Note `timeIt` divides it by 1000, so the
    interval has one-second granularity and anything under 1000ms falls back to
@@ -75,6 +79,15 @@ and no seal failure. The only ERROR lines were the harness's pre-existing
 
 ## Interactions worth knowing
 
+**Three governance values are easy to confuse, and one of them is inert.**
+`getBlockCreationTime` is the block interval and is read every block (mainnet
+`2000`). `getMaxIdleBlockInterval` is the idle heartbeat -- mainnet has it set
+to `5` -- and **nothing reads it for block production**: it is loaded into a
+struct and never consulted, the same fate as `throttleMining`'s call site. That
+is why an idle chain still mints an empty block every slot, and why
+`emptyinterval` is a node flag here rather than a revival of the on-chain
+value: re-wiring it would silently change mainnet's idle cadence from 2s to 5s.
+
 **The drift correction still owns the empty-block cadence, and only that.**
 `timeIt` compares recent block density against the nominal interval and either
 shortens the next slot (behind: `(interval-1)s + BlockMinBuildTime`) or
@@ -115,9 +128,21 @@ n=43  min=4291  avg=5330  max=5846 ms
 
 So the whole penalty is **+846ms at worst, for 21 blocks -- about 17 seconds of
 accumulated delay** -- and then the correction flips to `behind` and gives it
-back at 4.3s per block. The flip lands where the judgement window predicts:
-`BlockTimeAdjBlocks / interval` = 24 blocks, and it took 21. Nothing accumulates
-beyond that, whatever the burst was: both branches are fixed values.
+back at 4.3s per block. Nothing accumulates beyond that, whatever the burst
+was: both branches are fixed values.
+
+All four numbers fall out of the judgement window rather than being incidental
+to the run. `timeIt` looks back over `1, 24, 240, 2400, 17280` blocks (24 =
+`BlockTimeAdjBlocks / interval`, then ten-fold, capped at `86400 / interval`)
+and calls the window `behind` once its elapsed time passes the nominal
+`24 x 5 = 120s`, stopping at the first window that says so. With k slow blocks
+in that window, `k*5.82 + (24-k)*0.122 > 120` gives k=20 -> 116.9s (still
+ahead), **k=21 -> 122.6s -> flip**. Coming back is the same arithmetic:
+with m blocks at 4.3s, `139.7 - 1.51m < 120` gives **m=13 -> 120.1s**. The two
+values then interleave because `dt` sits on the 120s boundary and header
+timestamps are whole seconds. On mainnet's 2s interval the window is
+`120 / 2 = 60` blocks and the deadlines become 1300 / 1700 / 2800ms -- which
+matches its measured spacing (1s 26.0%, 2s 55.8%, 3s 10.5%, 4s 7.7%).
 
 Only the empty heartbeat is affected. A block carrying a transaction is sealed
 by the idle rule long before either deadline -- the 10-minute soak below saw a
