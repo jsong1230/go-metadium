@@ -100,17 +100,36 @@ deadline `timeIt` computes; nothing enforces it against an early seal. An
 `idleseal` below it (the 100ms above, against a 300ms `BlockMinBuildTime`) is
 honored as written.
 
-**`throttleMining` is dead code -- do not re-wire it without reading this.**
-`miner/worker.go` still carries `throttleMining`/`ancestorTimes` from
-`7ed4d8b27` ("added block generation throttling"), a hard rate cap: 1000 blocks
-must span 2000s, 500 blocks 500s, 100 blocks 50s, 50 blocks 10s, and a
-violation sleeps for the shortfall **in seconds**. Its call site disappeared in
-the `f113fe913` go-wemix merge (2023-07) and is absent from `master` and the
-archived Doraji branch, so it has no effect today. If it ever comes back, a
-chain sealing on idle would trip it constantly -- the 692ms/block measured above
-is 100 blocks in ~69s, already inside the 50s/100-block cap's neighbourhood, and
-a faster chain would be throttled by whole seconds. Either leave it inert or
-gate it on these flags being off.
+**`throttleMining` was removed here, and it is worth knowing why.**
+`miner/worker.go` carried `throttleMining`/`ancestorTimes` from `7ed4d8b27`
+(2019-03, "added block generation throttling"): a hard rate cap where 1000
+blocks must span 2000s, 500 blocks 500s, 100 blocks 50s, 50 blocks 10s, and a
+violation sleeps for the shortfall **in whole seconds**. It belonged to the
+era this document is restoring -- sealing happened as soon as the pool drained,
+there was no slot deadline, so block production needed a brake.
+
+The `f113fe913` go-wemix import (2023-07) brought `timeIt` and dropped the call
+site; the two overlap, and `timeIt` is the better-behaved of the pair. The dead
+definition survived the import and sat unreferenced through every release from
+`m0.10.0` (2023-10) to `m1.1.3`.
+
+| | `timeIt` (alive) | `throttleMining` (removed) |
+|---|---|---|
+| direction | both -- shortens the slot when behind, stretches it when ahead | brake only; does nothing when the chain is late |
+| bound | `interval + 800ms`, a fixed formula | none: up to `2000 - elapsed` **seconds** |
+| basis | block density vs the nominal interval | absolute counts over the last 1000 blocks |
+
+Restoring the brake would have been actively harmful here. On a chain sealing
+on idle at the 692ms/block measured above, the 1000-block rule alone would
+sleep `2000 - 692 = 1308s` -- **block production stops for ~22 minutes**, and
+the faster the chain, the longer the stall. Nothing is lost by removing it:
+catching up when the chain runs *late* was never its job, and that half is
+`timeIt`'s, which stays.
+
+What genuinely disappears with idle sealing is the slot deadline acting as a
+natural ceiling on block *rate*: traffic arriving just slower than
+`idleseal` gives every transaction its own block. If a deployment needs a floor
+under that, the shape to add is a bounded minimum spacing, not this.
 
 **With `emptyinterval` on, a transaction block may be trailed by one empty
 block.** The withhold decision is taken in `commitWork` from the pool's own
